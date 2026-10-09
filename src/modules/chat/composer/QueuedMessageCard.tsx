@@ -1,22 +1,26 @@
 import { useTranslation } from 'react-i18next';
-import { PencilIcon, XIcon } from 'lucide-react';
+import { PencilIcon, XIcon, ZapIcon } from 'lucide-react';
 
 type QueuedMessageCardProps = {
   content: string;
   attachmentCount?: number;
   onEdit: () => void;
   onDelete: () => void;
+  /** Stops the running turn so the queued message goes out now; absent when the turn cannot be stopped. */
+  onSendNow?: () => void;
 };
 
 /**
  * Rendered by chat's ChatComposer to show the message queued for a busy
- * session, with edit and delete actions before it is auto-sent.
+ * session, with edit and delete actions before it is auto-sent, and a
+ * "send now" action that interrupts the running turn instead of waiting.
  */
 export default function QueuedMessageCard({
   content,
   attachmentCount = 0,
   onEdit,
   onDelete,
+  onSendNow,
 }: QueuedMessageCardProps) {
   const { t } = useTranslation('chat');
 
@@ -41,6 +45,17 @@ export default function QueuedMessageCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          {onSendNow && (
+            <button
+              type="button"
+              onClick={onSendNow}
+              aria-label={t('input.queue.sendNow', { defaultValue: 'Stop the current response and send now' })}
+              title={t('input.queue.sendNow', { defaultValue: 'Stop the current response and send now' })}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            >
+              <ZapIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onEdit}

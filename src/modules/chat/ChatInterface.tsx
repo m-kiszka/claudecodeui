@@ -28,6 +28,8 @@ import {
 } from '@/shared/context/SessionProtectionContext';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { findCurrentPrompt } from '@/modules/chat/utils/currentPrompt';
+import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
 
 type ChatInterfaceProps = {
@@ -43,6 +45,7 @@ type ChatInterfaceProps = {
   showRawParameters?: boolean;
   showThinking?: boolean;
   sendByCtrlEnter?: boolean;
+  queueInterrupts?: boolean;
   externalMessageUpdate?: number;
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
@@ -67,6 +70,7 @@ function ChatInterface({
   showRawParameters,
   showThinking,
   sendByCtrlEnter,
+  queueInterrupts,
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
@@ -251,6 +255,7 @@ function ChatInterface({
     tokenBudget,
     sendMessage,
     sendByCtrlEnter,
+    queueInterrupts,
     onSessionProcessing,
     onSessionEstablished: handleSessionEstablished,
     onFileOpen,
@@ -404,6 +409,17 @@ function ChatInterface({
   // Lets a workflow card fetch its agents' timelines for this session.
   const transcriptSessionValue = useMemo(() => ({ sessionId: currentSessionId }), [currentSessionId]);
 
+  const currentPrompt = useMemo(() => findCurrentPrompt(chatMessages), [chatMessages]);
+
+  // Rows keep their timestamp attribute even while lazily unmounted, so the
+  // prompt can be found and scrolled to wherever it sits in the transcript.
+  const handleJumpToPrompt = useCallback((prompt: CurrentPrompt) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const selector = `[data-message-timestamp="${CSS.escape(String(prompt.timestamp))}"]`;
+    container.querySelector(selector)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [scrollContainerRef]);
+
   // A composer pick becomes the default for new chats and, when a session is
   // open, is recorded against that session so reopening it restores this model.
   const handleSelectComposerModel = useCallback(async (model: string) => {
@@ -538,6 +554,8 @@ function ChatInterface({
           activity={sessionActivity}
           isLoading={isProcessing}
           onAbortSession={handleAbortSession}
+          currentPrompt={currentPrompt}
+          onJumpToPrompt={handleJumpToPrompt}
           permissionMode={permissionMode}
           availablePermissionModes={availablePermissionModes}
           onSelectPermissionMode={selectPermissionMode}

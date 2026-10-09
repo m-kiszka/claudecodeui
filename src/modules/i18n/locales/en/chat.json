@@ -130,6 +130,7 @@
     "clearInput": "Clear input",
     "scrollToBottom": "Scroll to bottom",
     "queue": {
+      "sendNow": "Stop the current response and send now",
       "sendNext": "Queue next message",
       "update": "Update queued message",
       "label": "Queued",
@@ -246,6 +247,9 @@
       "label": "{{time}} elapsed",
       "startingNow": "Starting now"
     },
+    "currentPrompt": "Current prompt",
+    "jumpToPrompt": "Jump to message",
+    "showCurrentPrompt": "Show the current prompt",
     "stop": "Stop",
     "backgroundWork": "Background work",
     "backgroundTask": {

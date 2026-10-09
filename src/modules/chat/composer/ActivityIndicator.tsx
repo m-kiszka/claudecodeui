@@ -5,11 +5,16 @@ import type { TFunction } from 'i18next';
 import { Shimmer } from '@/shared/ui';
 import type { BackgroundTaskSummary, SessionActivity } from '@/shared/types';
 import { describeBackgroundTask, ownBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
+import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
+import CurrentPromptPopover from '@/modules/chat/composer/CurrentPromptPopover';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
   onAbort?: () => void;
   isInputFocused?: boolean;
+  /** The prompt the running turn answers; adds a tab that shows it. */
+  currentPrompt?: CurrentPrompt | null;
+  onJumpToPrompt?: (prompt: CurrentPrompt) => void;
 };
 
 const ACTION_KEYS = [
@@ -45,7 +50,13 @@ function describeBackgroundTasks(allTasks: BackgroundTaskSummary[], t: TFunction
  * Rendered by chat's ChatComposer above the input so the user can see and
  * interrupt the in-flight turn without leaving the composer.
  */
-export default function ActivityIndicator({ activity, onAbort, isInputFocused = false }: ActivityIndicatorProps) {
+export default function ActivityIndicator({
+  activity,
+  onAbort,
+  isInputFocused = false,
+  currentPrompt = null,
+  onJumpToPrompt,
+}: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
   const [isExiting, setIsExiting] = useState(false);
@@ -100,6 +111,23 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
       : 'border-border/50 shadow-[0_-1px_1px_hsl(var(--foreground)/0.04),1px_0_1px_hsl(var(--foreground)/0.03),-1px_0_1px_hsl(var(--foreground)/0.03)]',
   ].join(' ');
 
+  const statusTabClassName = `${tabSurfaceClassName} min-w-0 max-w-full gap-2`;
+  const statusContent = (
+    <>
+      <span
+        className={`h-1.5 w-1.5 shrink-0 animate-pulse rounded-full ${
+          isBackground ? 'bg-purple-500 dark:bg-purple-400' : 'bg-primary'
+        }`}
+        aria-hidden
+      />
+      <Shimmer className="shrink-0 font-medium">{`${label}…`}</Shimmer>
+      {detail && (
+        <span className="min-w-0 truncate text-muted-foreground" title={detail}>{detail}</span>
+      )}
+      <span className="shrink-0 tabular-nums text-muted-foreground/60">{elapsedLabel}</span>
+    </>
+  );
+
   return (
     <div
       className={`pointer-events-none bg-transparent ${
@@ -107,19 +135,18 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
       }`}
     >
       <div className="flex items-end justify-between gap-2">
-        <div className={`${tabSurfaceClassName} min-w-0 max-w-full gap-2`}>
-          <span
-            className={`h-1.5 w-1.5 shrink-0 animate-pulse rounded-full ${
-              isBackground ? 'bg-purple-500 dark:bg-purple-400' : 'bg-primary'
-            }`}
-            aria-hidden
-          />
-          <Shimmer className="shrink-0 font-medium">{`${label}…`}</Shimmer>
-          {detail && (
-            <span className="min-w-0 truncate text-muted-foreground" title={detail}>{detail}</span>
-          )}
-          <span className="shrink-0 tabular-nums text-muted-foreground/60">{elapsedLabel}</span>
-        </div>
+        {/* Background work answers no prompt of its own, so its status stays plain text. */}
+        {!isBackground && currentPrompt && onJumpToPrompt ? (
+          <CurrentPromptPopover
+            prompt={currentPrompt}
+            onJumpToPrompt={onJumpToPrompt}
+            triggerClassName={statusTabClassName}
+          >
+            {statusContent}
+          </CurrentPromptPopover>
+        ) : (
+          <div className={statusTabClassName}>{statusContent}</div>
+        )}
 
         {renderedActivity.canInterrupt && onAbort && (
           <button

@@ -14,6 +14,9 @@ const POLL_INTERVAL_MS = 30_000;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let dispatchInFlight = false;
+/** Set when a run ends during a pass, so that pass is followed by another one. */
+let dispatchRequestedDuringPass = false;
+let unsubscribeRunCompleted: (() => void) | null = null;
 
 type StoredQueuedMessage = {
   content: string;
@@ -173,9 +176,11 @@ export function initializeScheduledMessageDispatcher(runtime: ProviderRuntimeGat
     // A pass that overruns the interval must not be started again underneath
     // itself; the claim is transactional but the runs are not.
     if (dispatchInFlight) {
+      dispatchRequestedDuringPass = true;
       return;
     }
     dispatchInFlight = true;
+    dispatchRequestedDuringPass = false;
     void dispatchDueScheduledMessages(runtime)
       .then(() => dispatchQueuedMessages(runtime))
       .catch((error: unknown) => {
@@ -184,12 +189,19 @@ export function initializeScheduledMessageDispatcher(runtime: ProviderRuntimeGat
       })
       .finally(() => {
         dispatchInFlight = false;
+        if (dispatchRequestedDuringPass) {
+          poll();
+        }
       });
   };
 
   pollTimer = setInterval(poll, POLL_INTERVAL_MS);
   // Never keep the process alive just to poll for scheduled messages.
   pollTimer.unref?.();
+
+  // A queued turn goes out as soon as its session's run ends — finished or
+  // stopped — rather than waiting up to a full poll interval.
+  unsubscribeRunCompleted = chatRunRegistry.onRunCompleted(() => poll());
 
   // Catch up on anything that came due while the server was not running.
   poll();
@@ -200,4 +212,6 @@ export function closeScheduledMessageDispatcher(): void {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  unsubscribeRunCompleted?.();
+  unsubscribeRunCompleted = null;
 }

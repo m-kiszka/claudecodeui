@@ -49,6 +49,8 @@ type UseChatComposerStateArgs = {
   isLoading: boolean;
   processingSessions?: SessionActivityMap;
   canAbortSession: boolean;
+  /** Stop the running turn right after queueing a message, so it is sent at once. */
+  queueInterrupts?: boolean;
   tokenBudget: Record<string, unknown> | null;
   sendMessage: (message: unknown) => void;
   sendByCtrlEnter?: boolean;
@@ -180,6 +182,7 @@ export function useChatComposerState({
   isLoading,
   processingSessions,
   canAbortSession,
+  queueInterrupts = false,
   tokenBudget,
   sendMessage,
   sendByCtrlEnter,
@@ -311,6 +314,10 @@ export function useChatComposerState({
   // there is one commit where `sessionKey` already points at the new session
   // while `queuedDraft` still holds the old session's draft; the persistence
   // effect must not write across that gap.
+  // handleSubmit is declared before handleAbortSession, so it reaches it through this ref.
+  const handleAbortSessionRef = useRef<(() => void) | null>(null);
+  const queueInterruptsRef = useRef(queueInterrupts);
+  queueInterruptsRef.current = queueInterrupts;
   const queuedDraftSessionRef = useRef<string | null>(sessionKey);
 
   const handleBuiltInCommand = useCallback(
@@ -752,6 +759,10 @@ export function useChatComposerState({
         }
         if (draftScopeRef.current) {
           writeDraftText(draftScopeRef.current, '');
+        }
+        // The server sends the queued turn as soon as the stopped run ends.
+        if (queueInterruptsRef.current) {
+          handleAbortSessionRef.current?.();
         }
         return;
       }
@@ -1226,6 +1237,7 @@ export function useChatComposerState({
       sessionId: targetSessionId,
     });
   }, [canAbortSession, currentSessionId, selectedSession?.id, sendMessage]);
+  handleAbortSessionRef.current = handleAbortSession;
 
   const handleGrantToolPermission = useCallback(
     (suggestion: { entry: string; toolName: string }) => {

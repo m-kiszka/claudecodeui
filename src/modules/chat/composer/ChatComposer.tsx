@@ -27,6 +27,7 @@ import {
 } from '@/modules/chat/composer/PromptInput';
 import CommandMenu from '@/modules/chat/composer/CommandMenu';
 import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
+import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
 import ComposerAttachment from '@/modules/chat/composer/ComposerAttachment';
 import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
 import PermissionRequestsBanner from '@/modules/chat/composer/PermissionRequestsBanner';
@@ -52,6 +53,8 @@ type ChatComposerProps = {
   activity: SessionActivity | null;
   isLoading: boolean;
   onAbortSession: () => void;
+  currentPrompt: CurrentPrompt | null;
+  onJumpToPrompt: (prompt: CurrentPrompt) => void;
   permissionMode: PermissionMode;
   availablePermissionModes: PermissionMode[];
   onSelectPermissionMode: (mode: PermissionMode) => void;
@@ -127,6 +130,8 @@ export default function ChatComposer({
   activity,
   isLoading,
   onAbortSession,
+  currentPrompt,
+  onJumpToPrompt,
   permissionMode,
   availablePermissionModes,
   onSelectPermissionMode,
@@ -272,7 +277,13 @@ export default function ChatComposer({
     <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
       {!hasPendingPermissions && (
         <div className="pointer-events-none absolute bottom-full left-1/2 z-10 w-[calc(100%-1rem)] max-w-[54.25rem] -translate-x-1/2 translate-y-px bg-transparent sm:w-[calc(100%-2rem)]">
-          <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
+          <ActivityIndicator
+            activity={activity}
+            onAbort={onAbortSession}
+            isInputFocused={isInputFocused}
+            currentPrompt={currentPrompt}
+            onJumpToPrompt={onJumpToPrompt}
+          />
         </div>
       )}
 
@@ -317,6 +328,8 @@ export default function ChatComposer({
           }
           onEdit={onEditQueuedDraft}
           onDelete={onDeleteQueuedDraft}
+          // Stopping ends the run, and the server sends the queued turn as soon as a run ends.
+          onSendNow={isLoading && activity?.canInterrupt ? onAbortSession : undefined}
         />
       )}
 

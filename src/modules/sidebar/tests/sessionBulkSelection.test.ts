@@ -19,6 +19,16 @@ const getArchivedSessions = vi.fn();
 const recentConversations = vi.fn();
 const alertMock = vi.fn();
 
+vi.mock('@/modules/sidebar/hooks/useSessionStatus', async () => {
+  const { getSessionStatus } = await import('@/modules/sidebar/utils/sessionStatus');
+  const sets = { awaitingInputSessionIds: new Set<string>(), unreadCompletedSessionIds: new Set<string>() };
+  return {
+    useSessionStatusSets: () => sets,
+    useSessionStatus: (sessionId: string, isSelected: boolean, isProcessing: boolean) =>
+      getSessionStatus(sessionId, isSelected, isProcessing, sets.awaitingInputSessionIds, sets.unreadCompletedSessionIds),
+  };
+});
+
 vi.mock('@/shared/api', () => ({
   api: {
     deleteSession: (sessionId: string, hardDelete?: boolean) => deleteSession(sessionId, hardDelete),
@@ -102,7 +112,6 @@ const renderSessions = (overrides: ListOverrides = {}) =>
       isLoadingMoreSessions: false,
       activeSessions: NO_IDS,
       backgroundSessionIds: NO_IDS,
-      attentionSessionIds: NO_IDS,
       currentTime: NOW,
       sessionRenameId: null,
       sessionRenameDraft: '',

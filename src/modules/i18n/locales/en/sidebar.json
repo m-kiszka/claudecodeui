@@ -56,6 +56,8 @@
     "cancel": "Cancel",
     "clearSearch": "Clear search",
     "openCommandPalette": "Open command palette",
+    "awaitingInputIndicator": "Waiting for your input",
+    "unreadCompletedIndicator": "Finished, not read yet",
     "attentionRequiredIndicator": "Session needs attention",
     "backgroundWorkIndicator": "Background work running"
   },
@@ -132,6 +134,8 @@
   "search": {
     "modeProjects": "Projects",
     "modeConversations": "Conversations",
+    "modeRecent": "Recent",
+    "recentPlaceholder": "Filter the last two days...",
     "modeMore": "More",
     "conversationsPlaceholder": "Search in conversations...",
     "searching": "Searching...",
@@ -145,6 +149,9 @@
     "projectsScanned_other": "{{count}} projects scanned"
   },
   "recent": {
+    "windowTitle": "Last two days",
+    "windowEmptyTitle": "Nothing in the last two days",
+    "windowEmptyDescription": "Conversations active in the last 48 hours will appear here.",
     "title": "Recent conversations",
     "emptyTitle": "No conversations yet",
     "emptyDescription": "Your most recently updated conversations will appear here.",

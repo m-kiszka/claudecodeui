@@ -9,6 +9,7 @@ import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
 import SidebarProjectList from '@/modules/sidebar/SidebarProjectList';
 import SidebarRecentConversations from '@/modules/sidebar/SidebarRecentConversations';
+import { filterRecentWindow, reachesIntoRecentWindow } from '@/modules/sidebar/utils/recentWindow';
 
 function HighlightedSnippet({ snippet, highlights }: { snippet: string; highlights: { start: number; end: number }[] }) {
   const parts: ReactNode[] = [];
@@ -391,6 +392,33 @@ export default function SidebarContent({
             onRetry={onRetryRecentConversations}
             t={t}
           />
+        ) : searchMode === 'recent' ? (
+          (() => {
+            const now = projectListProps.currentTime.getTime();
+            const recentWindowConversations = filterRecentWindow(recentConversations, now, searchFilter);
+            // Still paging toward the window's edge: show the loading state, not a premature empty list.
+            const isFillingWindow = recentConversationsHasMore && reachesIntoRecentWindow(recentConversations, now);
+            return (
+              <SidebarRecentConversations
+                conversations={recentWindowConversations}
+                total={recentWindowConversations.length}
+                hasMore={false}
+                isLoading={isRecentConversationsLoading || (isFillingWindow && recentWindowConversations.length === 0)}
+                isLoadingMore={isFillingWindow}
+                hasError={recentConversationsError}
+                selectedSession={projectListProps.selectedSession}
+                currentTime={projectListProps.currentTime}
+                sessionActions={projectListProps}
+                onConversationSelect={onConversationResultClick}
+                onLoadMore={onLoadMoreRecentConversations}
+                onRetry={onRetryRecentConversations}
+                title={t('recent.windowTitle', 'Last two days')}
+                emptyTitle={t('recent.windowEmptyTitle', 'Nothing in the last two days')}
+                emptyDescription={t('recent.windowEmptyDescription', 'Conversations active in the last 48 hours will appear here.')}
+                t={t}
+              />
+            );
+          })()
         ) : searchMode === 'running' ? (
           projectListProps.filteredProjects.length === 0 ? (
             <div className="px-4 py-12 text-center md:py-8">

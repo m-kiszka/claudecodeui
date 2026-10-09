@@ -1,4 +1,4 @@
-import { Loader2, MessageSquare } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
 
@@ -7,6 +7,9 @@ import { cn } from '@/shared/utils';
 import type { ProjectSession, RecentConversationListItem, SessionRowActions } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import SessionOptions from '@/modules/sidebar/SessionOptions';
+import SessionStatusIcon from '@/modules/sidebar/SessionStatusIcon';
+import { getSessionStatus } from '@/modules/sidebar/utils/sessionStatus';
+import { useSessionStatusSets } from '@/modules/sidebar/hooks/useSessionStatus';
 
 type SidebarRecentConversationsProps = {
   conversations: RecentConversationListItem[];
@@ -29,6 +32,10 @@ type SidebarRecentConversationsProps = {
   ) => void;
   onLoadMore: () => void;
   onRetry: () => void;
+  /** Overrides for a narrowed view such as the Recent tab; default to the full feed's wording. */
+  title?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
   t: TFunction;
 };
 
@@ -62,8 +69,12 @@ export default function SidebarRecentConversations({
   onConversationSelect,
   onLoadMore,
   onRetry,
+  title,
+  emptyTitle,
+  emptyDescription,
   t,
 }: SidebarRecentConversationsProps) {
+  const { awaitingInputSessionIds, unreadCompletedSessionIds } = useSessionStatusSets();
   if (isLoading && conversations.length === 0) {
     return <RecentConversationSkeleton />;
   }
@@ -87,10 +98,10 @@ export default function SidebarRecentConversations({
       <div className="px-4 py-10 text-center">
         <MessageSquare className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
         <p className="text-sm font-medium text-foreground">
-          {t('recent.emptyTitle', 'No conversations yet')}
+          {emptyTitle ?? t('recent.emptyTitle', 'No conversations yet')}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {t('recent.emptyDescription', 'Your most recently updated conversations will appear here.')}
+          {emptyDescription ?? t('recent.emptyDescription', 'Your most recently updated conversations will appear here.')}
         </p>
       </div>
     );
@@ -100,7 +111,7 @@ export default function SidebarRecentConversations({
     <div className="px-1" data-testid="recent-conversations-list">
       <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
         <span className="text-[11px] font-medium text-muted-foreground">
-          {t('recent.title', 'Recent conversations')}
+          {title ?? t('recent.title', 'Recent conversations')}
         </span>
         <span className="text-[10px] tabular-nums text-muted-foreground/70">{total}</span>
       </div>
@@ -111,8 +122,13 @@ export default function SidebarRecentConversations({
           const age = formatCompactAge(conversation.lastActivity, currentTime);
           const hasBackgroundWork = sessionActions.backgroundSessionIds.has(conversation.sessionId);
           const isProcessing = sessionActions.activeSessions.has(conversation.sessionId) && !hasBackgroundWork;
-          const showAttentionIndicator =
-            sessionActions.attentionSessionIds.has(conversation.sessionId) && !isSelected;
+          const sessionStatus = getSessionStatus(
+            conversation.sessionId,
+            isSelected,
+            isProcessing,
+            awaitingInputSessionIds,
+            unreadCompletedSessionIds,
+          );
           // Resolved per row so a keystroke in one rename does not redraw the rest.
           const rename = sessionActions.activeRename;
           const sessionRename =
@@ -132,26 +148,7 @@ export default function SidebarRecentConversations({
 
           return (
             <div key={conversation.sessionId} className="group relative">
-              {/*
-                * Only the amber "needs attention" dot, and the spinner below. The
-                * Projects row also has a green dot for a session touched recently,
-                * which carries no information in a list ordered by recency.
-                */}
-              {showAttentionIndicator && (
-                <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
-                  <Tooltip
-                    content={t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })}
-                    position="right"
-                  >
-                    <div
-                      role="status"
-                      aria-label={t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })}
-                      className="h-2 w-2 animate-pulse rounded-full bg-amber-500"
-                    />
-                  </Tooltip>
-                </div>
-              )}
-
+              <SessionStatusIcon status={sessionStatus} t={t} />
               <a
                 href={`/session/${conversation.sessionId}`}
                 onClick={handleClick}
@@ -176,14 +173,8 @@ export default function SidebarRecentConversations({
                   </span>
                   <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
                     <span className="truncate">{conversation.projectDisplayName}</span>
-                    {isProcessing ? (
-                      <>
-                        <span className="flex-shrink-0 text-muted-foreground/40">·</span>
-                        <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                          <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" />
-                        </Tooltip>
-                      </>
-                    ) : hasBackgroundWork ? (
+                    {/* A response in flight or a question shows by the title instead. */}
+                    {sessionStatus === 'working' || sessionStatus === 'awaiting-input' ? null : hasBackgroundWork ? (
                       // No spinner: nothing is responding. The purple of the
                       // workflow and agent cards says what is still running.
                       <>

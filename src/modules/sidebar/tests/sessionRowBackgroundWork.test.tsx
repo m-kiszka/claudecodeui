@@ -17,6 +17,16 @@ import type { Project, SessionWithProvider, SidebarProjectListProps } from '@/sh
 
 const recordedOptionsProps: Record<string, unknown>[] = [];
 
+vi.mock('@/modules/sidebar/hooks/useSessionStatus', async () => {
+  const { getSessionStatus } = await import('@/modules/sidebar/utils/sessionStatus');
+  const sets = { awaitingInputSessionIds: new Set<string>(), unreadCompletedSessionIds: new Set<string>() };
+  return {
+    useSessionStatusSets: () => sets,
+    useSessionStatus: (sessionId: string, isSelected: boolean, isProcessing: boolean) =>
+      getSessionStatus(sessionId, isSelected, isProcessing, sets.awaitingInputSessionIds, sets.unreadCompletedSessionIds),
+  };
+});
+
 vi.mock('@/modules/sidebar/SessionOptions', () => ({
   default: (props: Record<string, unknown>) => {
     recordedOptionsProps.push(props);
@@ -39,7 +49,6 @@ const renderRow = (state: { isProcessing: boolean; hasBackgroundWork: boolean })
     project: PROJECT,
     session: SESSION,
     selectedSession: null,
-    needsAttention: false,
     currentTime: NOW,
     isEditing: false,
     renameDraft: '',
@@ -81,7 +90,7 @@ test('background work shows as the purple dot in place of the green one, with no
 test('a response in flight still spins and shows no dot', () => {
   const { container } = renderRow({ isProcessing: true, hasBackgroundWork: false });
 
-  assert.equal(container.querySelector('[role="status"]'), null);
+  assert.equal(container.querySelector('[role="status"].h-2'), null);
   assert.equal(container.querySelectorAll('.animate-spin').length, 1);
   assert.equal(recordedOptionsProps[0].isProcessing, true);
 });

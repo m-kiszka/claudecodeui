@@ -4,6 +4,8 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
 import type { ReactNode } from 'react';
 
@@ -20,6 +22,23 @@ type RunningSessionApiItem = {
   canInterrupt?: unknown;
   background?: unknown;
   tasks?: unknown;
+  awaitingInput?: unknown;
+};
+
+type UnreadCompletedSessions = {
+  unreadCompletedSessionIds: ReadonlySet<string>;
+  markSessionRead: (sessionId?: string | null) => void;
+};
+
+const UNREAD_COMPLETED_STORAGE_KEY = 'unreadCompletedSessionIds';
+
+const readPersistedUnreadIds = (): Set<string> => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(UNREAD_COMPLETED_STORAGE_KEY) ?? '[]');
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
 };
 
 type RunningSessionsApiPayload = {
@@ -41,6 +60,8 @@ const SessionProtectionStateContext = createContext<SessionActivityMap | null>(n
 const SessionProtectionActionsContext = createContext<SessionProtectionActions | null>(null);
 const BusySessionIdsContext = createContext<ReadonlySet<string> | null>(null);
 const BackgroundSessionIdsContext = createContext<ReadonlySet<string> | null>(null);
+const AwaitingInputSessionIdsContext = createContext<ReadonlySet<string> | null>(null);
+const UnreadCompletedSessionsContext = createContext<UnreadCompletedSessions | null>(null);
 
 /**
  * The set of session ids whose activity passes `include`, with a stable
@@ -131,6 +152,8 @@ export function SessionProtectionProvider({ children }: { children: ReactNode })
     isSessionProcessing,
     getSessionActivity,
   } = useSessionProtection();
+  // Kept as a membership key so the set keeps its identity between polls.
+  const [awaitingInputKey, setAwaitingInputKey] = useState('');
 
   const refreshRunningSessions = useCallback(async () => {
     try {
@@ -141,6 +164,14 @@ export function SessionProtectionProvider({ children }: { children: ReactNode })
 
       const payload = (await response.json()) as RunningSessionsApiPayload;
       const sessions = Array.isArray(payload.data?.sessions) ? payload.data.sessions : [];
+
+      setAwaitingInputKey(
+        sessions
+          .filter((session) => session.awaitingInput === true && typeof session.sessionId === 'string')
+          .map((session) => session.sessionId as string)
+          .sort()
+          .join('\u0000'),
+      );
 
       syncProcessingSessions(
         sessions
@@ -198,14 +229,66 @@ export function SessionProtectionProvider({ children }: { children: ReactNode })
 
   const busySessionIds = useSessionIdSet(processingSessions, isAnyActivity);
   const backgroundSessionIds = useSessionIdSet(processingSessions, isBackgroundOnly);
+  const awaitingInputSessionIds = useMemo<ReadonlySet<string>>(
+    () => new Set(awaitingInputKey ? awaitingInputKey.split('\u0000') : []),
+    [awaitingInputKey],
+  );
+
+  // A session that drops out of the busy set has finished its run. It stays
+  // unread until opened; the project workspace clears the one being viewed.
+  const [unreadCompletedSessionIds, setUnreadCompletedSessionIds] = useState<Set<string>>(readPersistedUnreadIds);
+  const previousBusySessionIdsRef = useRef<ReadonlySet<string>>(busySessionIds);
+  useEffect(() => {
+    const finishedSessionIds = [...previousBusySessionIdsRef.current].filter((id) => !busySessionIds.has(id));
+    previousBusySessionIdsRef.current = busySessionIds;
+    if (finishedSessionIds.length === 0) {
+      return;
+    }
+    setUnreadCompletedSessionIds((previous) => {
+      const next = new Set(previous);
+      finishedSessionIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [busySessionIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(UNREAD_COMPLETED_STORAGE_KEY, JSON.stringify([...unreadCompletedSessionIds]));
+    } catch {
+      // Storage can be unavailable (private mode); the state still works in memory.
+    }
+  }, [unreadCompletedSessionIds]);
+
+  const markSessionRead = useCallback((sessionId?: string | null) => {
+    if (!sessionId) {
+      return;
+    }
+    setUnreadCompletedSessionIds((previous) => {
+      if (!previous.has(sessionId)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.delete(sessionId);
+      return next;
+    });
+  }, []);
+
+  const unreadCompletedSessions = useMemo<UnreadCompletedSessions>(
+    () => ({ unreadCompletedSessionIds, markSessionRead }),
+    [markSessionRead, unreadCompletedSessionIds],
+  );
 
   return (
     <SessionProtectionActionsContext.Provider value={actions}>
       <BusySessionIdsContext.Provider value={busySessionIds}>
         <BackgroundSessionIdsContext.Provider value={backgroundSessionIds}>
-          <SessionProtectionStateContext.Provider value={processingSessions}>
-            {children}
-          </SessionProtectionStateContext.Provider>
+          <AwaitingInputSessionIdsContext.Provider value={awaitingInputSessionIds}>
+            <UnreadCompletedSessionsContext.Provider value={unreadCompletedSessions}>
+              <SessionProtectionStateContext.Provider value={processingSessions}>
+                {children}
+              </SessionProtectionStateContext.Provider>
+            </UnreadCompletedSessionsContext.Provider>
+          </AwaitingInputSessionIdsContext.Provider>
         </BackgroundSessionIdsContext.Provider>
       </BusySessionIdsContext.Provider>
     </SessionProtectionActionsContext.Provider>
@@ -236,6 +319,24 @@ export function useBackgroundSessionIdSet(): ReadonlySet<string> {
     throw new Error('useBackgroundSessionIdSet must be used within SessionProtectionProvider');
   }
   return backgroundSessionIds;
+}
+
+/** Sessions whose run is blocked on a tool approval or question from the user. */
+export function useAwaitingInputSessionIdSet(): ReadonlySet<string> {
+  const awaitingInputSessionIds = useContext(AwaitingInputSessionIdsContext);
+  if (!awaitingInputSessionIds) {
+    throw new Error('useAwaitingInputSessionIdSet must be used within SessionProtectionProvider');
+  }
+  return awaitingInputSessionIds;
+}
+
+/** Sessions whose run finished since they were last opened, plus the action that marks one read. */
+export function useUnreadCompletedSessions(): UnreadCompletedSessions {
+  const unreadCompletedSessions = useContext(UnreadCompletedSessionsContext);
+  if (!unreadCompletedSessions) {
+    throw new Error('useUnreadCompletedSessions must be used within SessionProtectionProvider');
+  }
+  return unreadCompletedSessions;
 }
 
 export function useProcessingSessions(): SessionActivityMap {

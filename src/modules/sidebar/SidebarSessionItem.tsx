@@ -10,6 +10,8 @@ import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/mod
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import SessionOptions from '@/modules/sidebar/SessionOptions';
+import SessionStatusIcon from '@/modules/sidebar/SessionStatusIcon';
+import { useSessionStatus } from '@/modules/sidebar/hooks/useSessionStatus';
 
 type SidebarSessionItemProps = {
   project: Project;
@@ -18,7 +20,6 @@ type SidebarSessionItemProps = {
   isProcessing: boolean;
   /** The session's turn has ended but the agents, workflows or commands it launched still run. */
   hasBackgroundWork: boolean;
-  needsAttention: boolean;
   currentTime: Date;
   /** Resolved for this row, so a keystroke elsewhere does not invalidate it. */
   isEditing: boolean;
@@ -48,7 +49,6 @@ function SidebarSessionItem({
   selectedSession,
   isProcessing,
   hasBackgroundWork,
-  needsAttention,
   currentTime,
   isEditing,
   renameDraft,
@@ -68,18 +68,16 @@ function SidebarSessionItem({
   const isCompact = useCompactSidebar();
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
+  const sessionStatus = useSessionStatus(session.id, isSelected, isProcessing);
   const compactSessionAge = formatCompactAge(sessionView.sessionTime, currentTime);
   const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState(false);
-  const showAttentionIndicator = needsAttention && !isSelected;
   // Background work takes the recent-activity dot's place: the session is
   // still doing something, which says more than that it was touched lately.
-  const showBackgroundIndicator = !showAttentionIndicator && hasBackgroundWork;
-  const showRecentIndicator = !showAttentionIndicator && !showBackgroundIndicator && !isProcessing && sessionView.isActive;
-  const indicatorLabel = showAttentionIndicator
-    ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-    : showBackgroundIndicator
-      ? t('tooltips.backgroundWorkIndicator', { defaultValue: 'Background work running' })
-      : t('tooltips.activeSessionIndicator');
+  const showBackgroundIndicator = hasBackgroundWork;
+  const showRecentIndicator = !showBackgroundIndicator && !isProcessing && sessionView.isActive;
+  const indicatorLabel = showBackgroundIndicator
+    ? t('tooltips.backgroundWorkIndicator', { defaultValue: 'Background work running' })
+    : t('tooltips.activeSessionIndicator');
   const providerLabel = PROVIDER_LABELS[session.__provider];
 
   // The desktop controls live in SessionOptions, which owns the rename panel and
@@ -149,7 +147,8 @@ function SidebarSessionItem({
 
   return (
     <div className="group relative">
-      {(showAttentionIndicator || showBackgroundIndicator || showRecentIndicator) && (
+      <SessionStatusIcon status={sessionStatus} t={t} />
+      {!sessionStatus && (showBackgroundIndicator || showRecentIndicator) && (
         <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
           <Tooltip content={indicatorLabel} position="right">
             <div
@@ -157,11 +156,7 @@ function SidebarSessionItem({
               aria-label={indicatorLabel}
               className={cn(
                 'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator
-                  ? 'bg-amber-500'
-                  : showBackgroundIndicator
-                    ? 'bg-purple-500 dark:bg-purple-400'
-                    : 'bg-green-500',
+                showBackgroundIndicator ? 'bg-purple-500 dark:bg-purple-400' : 'bg-green-500',
               )}
             />
           </Tooltip>
@@ -207,15 +202,7 @@ function SidebarSessionItem({
                 >
                   {sessionView.sessionName}
                 </div>
-                {isProcessing ? (
-                  <span className="ml-auto flex-shrink-0">
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : compactSessionAge && (
+                {sessionStatus !== 'awaiting-input' && sessionStatus !== 'working' && compactSessionAge && (
                   <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
@@ -431,20 +418,7 @@ function SidebarSessionItem({
                 >
                   {sessionView.sessionName}
                 </div>
-                {isProcessing ? (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : !isSelecting && 'group-hover:opacity-0',
-                    )}
-                  >
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : compactSessionAge && (
+                {sessionStatus !== 'awaiting-input' && sessionStatus !== 'working' && compactSessionAge && (
                   <span
                     className={cn(
                       'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',

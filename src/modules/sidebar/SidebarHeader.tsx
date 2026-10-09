@@ -73,7 +73,9 @@ export default function SidebarHeader({
   const showSearchTools = (projectsCount > 0 || runningSessionsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
   const searchPlaceholder = searchMode === 'conversations'
     ? t('search.conversationsPlaceholder')
-    : searchMode === 'archived'
+    : searchMode === 'recent'
+      ? t('search.recentPlaceholder', 'Filter the last two days...')
+      : searchMode === 'archived'
       ? t('search.archivedPlaceholder', 'Search archived sessions...')
       : searchMode === 'running'
         ? t('search.runningPlaceholder', 'Search running sessions...')

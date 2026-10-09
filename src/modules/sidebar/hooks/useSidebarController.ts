@@ -15,6 +15,7 @@ import {
   readLegacyStarredProjectIds,
   readProjectSortOrder,
 } from '@/modules/sidebar/utils/sidebarStoredPreferences';
+import { reachesIntoRecentWindow } from '@/modules/sidebar/utils/recentWindow';
 
 
 type ArchivedSessionsApiPayload = {
@@ -333,6 +334,35 @@ export function useSidebarController({
 
     reloadRecentConversations();
   }, [debouncedSearchQuery, reloadRecentConversations, searchMode]);
+
+  // Recent filters the loaded rows locally, so typing in its search box must
+  // not refetch them: reload only when the tab is opened.
+  useEffect(() => {
+    if (searchMode === 'recent') {
+      reloadRecentConversations();
+    }
+  }, [reloadRecentConversations, searchMode]);
+
+  // The feed is paged by recency, so keep pulling pages while the oldest row
+  // loaded is still inside the Recent window.
+  useEffect(() => {
+    if (
+      searchMode === 'recent'
+      && recentConversationsHasMore
+      && !isRecentConversationsLoading
+      && !isLoadingMoreRecentConversations
+      && reachesIntoRecentWindow(recentConversations, Date.now())
+    ) {
+      loadMoreRecentConversations();
+    }
+  }, [
+    isLoadingMoreRecentConversations,
+    isRecentConversationsLoading,
+    loadMoreRecentConversations,
+    recentConversations,
+    recentConversationsHasMore,
+    searchMode,
+  ]);
 
   // The Conversations list is only fetched when its tab opens, while `projects`
   // is patched the moment a session is renamed from the workspace header. Fold
@@ -1153,7 +1183,7 @@ export function useSidebarController({
       await Promise.all([
         Promise.resolve(onRefresh()),
         fetchArchivedSessions(),
-        searchMode === 'conversations'
+        searchMode === 'conversations' || searchMode === 'recent'
           ? fetchRecentConversationsPage(0, false)
           : Promise.resolve(),
       ]);

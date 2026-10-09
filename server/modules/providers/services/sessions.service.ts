@@ -41,6 +41,8 @@ type RunningSessionEntry = {
   canInterrupt?: false;
   statusText?: string;
   tasks?: BackgroundTaskSummary[];
+  /** A tool approval or question is waiting on the user; the sidebar flags the row. */
+  awaitingInput?: true;
 };
 
 type CreateAppSessionResult = {
@@ -206,6 +208,17 @@ export const sessionsService = {
         statusText: 'Running in the Claude CLI',
       });
       runningById.set(session.session_id, entries[entries.length - 1]);
+    }
+
+    // Only runs CloudCLI drives itself can hold a pending approval; a turn in
+    // an external Claude CLI asks in its own terminal and is never flagged.
+    for (const entry of entries) {
+      const hasPendingApproval = providerRegistry.listProviders().some(
+        (provider) => (provider.runtime.permissions?.listPending(entry.sessionId) ?? []).length > 0,
+      );
+      if (hasPendingApproval) {
+        entry.awaitingInput = true;
+      }
     }
 
     return entries;

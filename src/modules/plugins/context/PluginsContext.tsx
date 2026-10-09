@@ -1,8 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { useAuth } from '@/modules/auth';
 import { api } from '@/shared/api';
+import { useWebSocket } from '@/shared/context/WebSocketContext';
 import type { Plugin } from '@/shared/types';
+import { IS_PLATFORM } from '@/shared/utils';
+
+const MAX_FETCH_RETRIES = 5;
 
 
 type PluginsContextValue = {
@@ -31,6 +36,9 @@ export function PluginsProvider({ children }: { children: ReactNode }) {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [pluginsError, setPluginsError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const { isLoading: isAuthLoading, user } = useAuth();
+  const { subscribe } = useWebSocket();
 
   const refreshPlugins = useCallback(async () => {
     try {
@@ -39,6 +47,7 @@ export function PluginsProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         setPlugins(data.plugins || []);
         setPluginsError(null);
+        setRetryCount(0);
       } else {
         let errorMessage = `Failed to fetch plugins (${res.status})`;
         try {
@@ -58,9 +67,30 @@ export function PluginsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // This provider mounts outside ProtectedRoute, so the first fetch can run
+  // before login and fail with 401. Refetch once the user is authenticated.
   useEffect(() => {
+    if (!IS_PLATFORM && (isAuthLoading || !user)) return;
     void refreshPlugins();
-  }, [refreshPlugins]);
+  }, [refreshPlugins, isAuthLoading, user]);
+
+  // A transient failure (server still booting, network blip) would otherwise
+  // leave plugin tabs missing until a full page reload.
+  useEffect(() => {
+    if (!pluginsError || retryCount >= MAX_FETCH_RETRIES) return undefined;
+    const timer = setTimeout(() => {
+      setRetryCount((count) => count + 1);
+      void refreshPlugins();
+    }, 2000 * 2 ** retryCount);
+    return () => clearTimeout(timer);
+  }, [pluginsError, retryCount, refreshPlugins]);
+
+  useEffect(() => subscribe((event) => {
+    if (event.kind === 'websocket_reconnected') {
+      setRetryCount(0);
+      void refreshPlugins();
+    }
+  }), [subscribe, refreshPlugins]);
 
   const installPlugin = useCallback(async (url: string) => {
     try {

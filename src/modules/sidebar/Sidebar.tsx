@@ -7,7 +7,7 @@ import { useUiPreferences, useSetUiPreference } from '@/shared/context/UiPrefere
 import { useSidebarController } from '@/modules/sidebar/hooks/useSidebarController';
 import { useTaskMaster, useTasksSettings } from '@/modules/task-master';
 import { usePaletteOps } from '@/modules/command-palette';
-import { useBackgroundSessionIdSet, useBusySessionIdSet } from '@/shared/context/SessionProtectionContext';
+import { useBackgroundSessionIdSet, useBusySessionIdSet, useUnreadCompletedSessions } from '@/shared/context/SessionProtectionContext';
 import type { LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SidebarProjectListProps } from '@/shared/types';
 import SidebarCollapsed from '@/modules/sidebar/SidebarCollapsed';
 import SidebarContent from '@/modules/sidebar/SidebarContent';
@@ -17,7 +17,6 @@ type SidebarProps = {
   projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
-  attentionSessionIds: ReadonlySet<string>;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
@@ -46,7 +45,6 @@ function Sidebar({
   projects,
   selectedProject,
   selectedSession,
-  attentionSessionIds,
   onProjectSelect,
   onSessionSelect,
   onNewSession,
@@ -78,6 +76,15 @@ function Sidebar({
   // would re-render the whole tree on every provider status frame.
   const activeSessions = useBusySessionIdSet();
   const backgroundSessionIds = useBackgroundSessionIdSet();
+  const { unreadCompletedSessionIds, markSessionRead } = useUnreadCompletedSessions();
+
+  // The open session is being read, including one that finishes while open.
+  const selectedSessionId = selectedSession?.id ?? null;
+  useEffect(() => {
+    if (selectedSessionId && unreadCompletedSessionIds.has(selectedSessionId)) {
+      markSessionRead(selectedSessionId);
+    }
+  }, [markSessionRead, selectedSessionId, unreadCompletedSessionIds]);
 
   const {
     isSidebarCollapsed,
@@ -210,7 +217,6 @@ function Sidebar({
     loadingMoreProjects,
     activeSessions,
     backgroundSessionIds,
-    attentionSessionIds,
     isProjectStarred,
     onRenameDraftChange: updateRenameDraft,
     onToggleProject: toggleProject,

@@ -16,6 +16,16 @@ import type { ActiveSidebarRename, RecentConversationListItem, SessionRowActions
 
 const recordedOptionsProps: Record<string, unknown>[] = [];
 
+vi.mock('@/modules/sidebar/hooks/useSessionStatus', async () => {
+  const { getSessionStatus } = await import('@/modules/sidebar/utils/sessionStatus');
+  const sets = { awaitingInputSessionIds: new Set<string>(), unreadCompletedSessionIds: new Set<string>() };
+  return {
+    useSessionStatusSets: () => sets,
+    useSessionStatus: (sessionId: string, isSelected: boolean, isProcessing: boolean) =>
+      getSessionStatus(sessionId, isSelected, isProcessing, sets.awaitingInputSessionIds, sets.unreadCompletedSessionIds),
+  };
+});
+
 vi.mock('@/modules/sidebar/SessionOptions', () => ({
   default: (props: Record<string, unknown>) => {
     recordedOptionsProps.push(props);
@@ -46,7 +56,6 @@ const makeActions = (overrides: Partial<SessionRowActions> = {}): SessionRowActi
   activeRename: null,
   activeSessions: new Set<string>(),
   backgroundSessionIds: new Set<string>(),
-  attentionSessionIds: new Set<string>(),
   onRenameDraftChange: noop,
   onStartEditingSession: noop,
   onCancelEditingSession: noop,
@@ -146,16 +155,4 @@ test('a session with only background work running gets the purple dot, not the s
   assert.equal(dots.length, 1);
   assert.equal(dots[0].getAttribute('aria-label'), 'tooltips.backgroundWorkIndicator');
   assert.equal(container.querySelectorAll('time').length, 1, 'the other row shows its age');
-});
-
-test('a session needing attention gets the amber dot', () => {
-  const { container } = renderList(
-    [conversation('s1'), conversation('s2')],
-    makeActions({ attentionSessionIds: new Set(['s2']) }),
-  );
-
-  const dots = container.querySelectorAll('[role="status"].bg-amber-500');
-  assert.equal(dots.length, 1);
-  const rows = container.querySelectorAll('[data-testid="recent-conversation-row"]');
-  assert.equal(rows.length, 2);
 });

@@ -588,20 +588,14 @@
     clip-path: inset(-8px -8px 0 -8px);
   }
 
+  /*
+   * No content-visibility here: LazyMessageRow already unmounts rows far from
+   * the viewport. Skipping paint on top of that left mounted rows at an
+   * estimated height until they reached the viewport edge, and the late
+   * correction fought fast (momentum) scrolling, snapping the view back.
+   */
   .chat-message {
     contain: layout style paint;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 180px;
-  }
-
-  .chat-message.assistant {
-    contain-intrinsic-size: auto 240px;
-  }
-
-  .chat-message.user,
-  .chat-message.tool,
-  .chat-message.error {
-    contain-intrinsic-size: auto 96px;
   }
 
   /* Mobile touch optimization and safe areas */

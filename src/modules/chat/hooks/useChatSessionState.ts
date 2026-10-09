@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { MutableRefObject } from 'react';
+import type { MutableRefObject, TouchEvent, WheelEvent } from 'react';
 
 import { api } from '@/shared/api';
 import type { MarkSessionIdle, SessionActivityMap,Project,ProjectSession,LLMProvider,NormalizedMessage,ChatMessage,DiffCalculator } from '@/shared/types';
@@ -13,6 +13,9 @@ import { readSelectedProvider } from '@/shared/selectedProvider';
 import type { SearchTarget } from '@/modules/chat/utils/searchTargetLocator';
 
 const INITIAL_VISIBLE_MESSAGES = 100;
+
+/** How long an upward wheel or swipe outranks a stale "near bottom" reading. */
+const UPWARD_GESTURE_GRACE_MS = 300;
 
 /** Messages kept below a search hit so it lands mid-viewport rather than at the edge. */
 const SEARCH_TARGET_CONTEXT_MESSAGES = 20;
@@ -530,12 +533,20 @@ export function useChatSessionState({
     [hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
   );
 
+  const lastUpwardGestureAtRef = useRef(0);
+
   const handleScroll = useCallback(async () => {
     if (!isActive) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const nearBottom = isNearBottom();
+    // Right after an upward wheel or swipe the browser may not have moved the
+    // view yet, so "near bottom" would wrongly re-enable sticking to it.
+    const nearBottom = isNearBottom()
+      && Date.now() - lastUpwardGestureAtRef.current > UPWARD_GESTURE_GRACE_MS;
+    // Synced here too, not only by the mirroring effect: a deferred
+    // scroll-to-bottom firing before that effect runs would pull the view back.
+    isUserScrolledUpRef.current = !nearBottom;
     setIsUserScrolledUp(!nearBottom);
     scrollPositionRef.current = {
       height: container.scrollHeight,
@@ -570,6 +581,35 @@ export function useChatSessionState({
       if (didLoad) topLoadLockRef.current = true;
     }
   }, [hasMoreMessages, isActive, isNearBottom, loadOlderMessages]);
+
+  const lastTouchYRef = useRef<number | null>(null);
+
+  /**
+   * Wheel and touch handler for the transcript. These events fire before the
+   * browser moves the view, so `handleScroll` alone still reads the old
+   * position and, within 50px of the bottom, keeps "stick to bottom" on: the
+   * next message or the initial-scroll loop then yanked the view back down
+   * mid-gesture. An upward gesture is taken as intent to read history at once.
+   */
+  const handleScrollGesture = useCallback((event: WheelEvent<HTMLElement> | TouchEvent<HTMLElement>) => {
+    let movesUp = false;
+    if ('deltaY' in event) {
+      movesUp = event.deltaY < 0;
+    } else {
+      const touchY = event.touches[0]?.clientY ?? null;
+      // A finger moving down drags the content up, towards older messages.
+      movesUp = touchY !== null && lastTouchYRef.current !== null && touchY > lastTouchYRef.current;
+      lastTouchYRef.current = touchY;
+    }
+
+    if (movesUp && isActive) {
+      lastUpwardGestureAtRef.current = Date.now();
+      pendingInitialScrollRef.current = false;
+      isUserScrolledUpRef.current = true;
+      setIsUserScrolledUp(true);
+    }
+    void handleScroll();
+  }, [handleScroll, isActive]);
 
   const wasChatActiveRef = useRef(isActive);
   useLayoutEffect(() => {
@@ -1174,6 +1214,7 @@ export function useChatSessionState({
     scrollToBottom,
     scrollToBottomAndReset,
     handleScroll,
+    handleScrollGesture,
     requestLatestMessages,
   };
 }

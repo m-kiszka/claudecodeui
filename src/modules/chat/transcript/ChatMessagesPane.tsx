@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { memo, useCallback, useMemo } from 'react';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { Dispatch, RefObject, SetStateAction, TouchEvent, WheelEvent } from 'react';
 
 import type { BackgroundTaskSummary,
   ChatMessage,
@@ -29,8 +29,8 @@ const INITIAL_MOUNTED_TAIL_ROWS = 30;
 
 type ChatMessagesPaneProps = {
   scrollContainerRef: RefObject<HTMLDivElement>;
-  onWheel: () => void;
-  onTouchMove: () => void;
+  onWheel: (event: WheelEvent<HTMLElement>) => void;
+  onTouchMove: (event: TouchEvent<HTMLElement>) => void;
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;

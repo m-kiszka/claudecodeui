@@ -1,5 +1,6 @@
 @echo off
-rem Builds this fork and serves it on port 3001, in place of the global CloudCLI.
+rem Serves this fork on port 3001 in place of the global CloudCLI, rebuilding only
+rem what changed since the last build, and opens it in the browser.
 title CloudCLI (fork)
 cd /d "%~dp0"
 
@@ -10,6 +11,5 @@ if %errorlevel%==0 (
   exit /b 1
 )
 
-set SERVER_PORT=3001
-call npm start
+node scripts\start-fork.mjs
 pause

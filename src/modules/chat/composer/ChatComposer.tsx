@@ -10,7 +10,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { PaperclipIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon } from 'lucide-react';
+import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon } from 'lucide-react';
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
@@ -27,6 +27,7 @@ import {
 } from '@/modules/chat/composer/PromptInput';
 import CommandMenu from '@/modules/chat/composer/CommandMenu';
 import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
+import CurrentPromptPopover from '@/modules/chat/composer/CurrentPromptPopover';
 import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
 import ComposerAttachment from '@/modules/chat/composer/ComposerAttachment';
 import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
@@ -53,7 +54,8 @@ type ChatComposerProps = {
   activity: SessionActivity | null;
   isLoading: boolean;
   onAbortSession: () => void;
-  currentPrompt: CurrentPrompt | null;
+  /** The user's prompts in this transcript, newest first. */
+  userPrompts: CurrentPrompt[];
   onJumpToPrompt: (prompt: CurrentPrompt) => void;
   permissionMode: PermissionMode;
   availablePermissionModes: PermissionMode[];
@@ -130,7 +132,7 @@ export default function ChatComposer({
   activity,
   isLoading,
   onAbortSession,
-  currentPrompt,
+  userPrompts,
   onJumpToPrompt,
   permissionMode,
   availablePermissionModes,
@@ -281,8 +283,6 @@ export default function ChatComposer({
             activity={activity}
             onAbort={onAbortSession}
             isInputFocused={isInputFocused}
-            currentPrompt={currentPrompt}
-            onJumpToPrompt={onJumpToPrompt}
           />
         </div>
       )}
@@ -451,6 +451,23 @@ export default function ChatComposer({
             >
               <PaperclipIcon />
             </PromptInputButton>
+
+            {userPrompts.length > 0 && (
+              <CurrentPromptPopover
+                prompts={userPrompts}
+                onJumpToPrompt={onJumpToPrompt}
+                renderTrigger={({ isOpen, toggle }) => (
+                  <PromptInputButton
+                    tooltip={{ content: t('claudeStatus.showCurrentPrompt', { defaultValue: 'Show the current prompt' }) }}
+                    onClick={toggle}
+                    aria-expanded={isOpen}
+                    aria-label={t('claudeStatus.showCurrentPrompt', { defaultValue: 'Show the current prompt' })}
+                  >
+                    <MessageSquareTextIcon />
+                  </PromptInputButton>
+                )}
+              />
+            )}
 
             {onVoiceTranscript && voiceAvailable && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />

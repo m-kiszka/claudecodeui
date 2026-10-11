@@ -28,7 +28,7 @@ import {
 } from '@/shared/context/SessionProtectionContext';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
-import { findCurrentPrompt } from '@/modules/chat/utils/currentPrompt';
+import { findUserPrompts } from '@/modules/chat/utils/currentPrompt';
 import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
 
@@ -409,7 +409,7 @@ function ChatInterface({
   // Lets a workflow card fetch its agents' timelines for this session.
   const transcriptSessionValue = useMemo(() => ({ sessionId: currentSessionId }), [currentSessionId]);
 
-  const currentPrompt = useMemo(() => findCurrentPrompt(chatMessages), [chatMessages]);
+  const userPrompts = useMemo(() => findUserPrompts(chatMessages), [chatMessages]);
 
   // Rows keep their timestamp attribute even while lazily unmounted, so the
   // prompt can be found and scrolled to wherever it sits in the transcript.
@@ -554,7 +554,7 @@ function ChatInterface({
           activity={sessionActivity}
           isLoading={isProcessing}
           onAbortSession={handleAbortSession}
-          currentPrompt={currentPrompt}
+          userPrompts={userPrompts}
           onJumpToPrompt={handleJumpToPrompt}
           permissionMode={permissionMode}
           availablePermissionModes={availablePermissionModes}

@@ -1,20 +1,21 @@
 import type { ChatMessage } from '@/shared/types';
 
-/** The user's prompt the running turn is answering, as the composer shows it. */
+/** One of the user's prompts, as the composer's prompt popover lists it. */
 export type CurrentPrompt = {
   text: string;
   timestamp: ChatMessage['timestamp'];
 };
 
-/** The newest user message with text, or null when the transcript has none. */
-export function findCurrentPrompt(messages: readonly ChatMessage[]): CurrentPrompt | null {
+/** Every user message with text, newest first. */
+export function findUserPrompts(messages: readonly ChatMessage[]): CurrentPrompt[] {
+  const prompts: CurrentPrompt[] = [];
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.type !== 'user') continue;
     const text = (message.displayText ?? message.content ?? '').trim();
     if (text) {
-      return { text, timestamp: message.timestamp };
+      prompts.push({ text, timestamp: message.timestamp });
     }
   }
-  return null;
+  return prompts;
 }

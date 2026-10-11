@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { PaletteOpsProvider } from '@/modules/command-palette';
@@ -30,7 +30,14 @@ function ProjectWorkspaceRouteContent() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { ws, sendMessage, subscribe } = useWebSocket();
-  const { isSessionProcessing } = useSessionProtectionActions();
+  const { getSessionActivity } = useSessionProtectionActions();
+  // Only a turn CloudCLI drives itself streams into the open chat over the
+  // socket; one running in the Claude CLI (canInterrupt: false) reaches it
+  // only through the transcript on disk, so its updates must not be held back.
+  const isSessionStreamedHere = useCallback((targetSessionId?: string | null) => {
+    const activity = targetSessionId ? getSessionActivity(targetSessionId) : undefined;
+    return Boolean(activity && !activity.background && activity.canInterrupt);
+  }, [getSessionActivity]);
 
   useVisualViewportKeyboardOffset();
 
@@ -40,7 +47,7 @@ function ProjectWorkspaceRouteContent() {
       navigate={navigate}
       subscribe={subscribe}
       isMobile={isMobile}
-      isSessionProcessing={isSessionProcessing}
+      isSessionProcessing={isSessionStreamedHere}
     >
       <ProjectWorkspaceShell
         isMobile={isMobile}

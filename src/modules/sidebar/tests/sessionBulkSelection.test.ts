@@ -166,7 +166,8 @@ test('the idle list offers Select and opens an empty selection with it', () => {
   assert.equal(checkboxes(container).length, 0, 'no row acts as a checkbox before selecting');
   assert.equal(recordedOptionsProps.length, SESSIONS.length, 'every row still has its options menu');
 
-  const selectButton = buttonWithText(container, 'sessions.select');
+  // An icon button beside New Session, named by its aria-label.
+  const selectButton = container.querySelector<HTMLButtonElement>('button[aria-label="sessions.select"]');
   assert.ok(selectButton, 'the idle list offers to start selecting');
 
   fireEvent.click(selectButton);
@@ -178,7 +179,7 @@ test('the idle list offers Select and opens an empty selection with it', () => {
 test('a list whose every session is running has nothing to offer Select for', () => {
   const { container } = renderSessions({ activeSessions: new Set(['s1', 's2', 's3']) });
 
-  assert.equal(buttonWithText(container, 'sessions.select'), null);
+  assert.equal(container.querySelector('button[aria-label="sessions.select"]'), null);
 });
 
 test('selection mode replaces the row options with a checkbox on every row', () => {
@@ -190,7 +191,7 @@ test('selection mode replaces the row options with a checkbox on every row', () 
     ['false', 'false', 'false'],
   );
   assert.equal(recordedOptionsProps.length, 0, 'the per-row options menu is hidden while selecting');
-  assert.equal(buttonWithText(container, 'sessions.select'), null);
+  assert.equal(container.querySelector('button[aria-label="sessions.select"]'), null);
   assert.ok(buttonWithText(container, 'sessions.selectAll'));
   assert.ok(buttonWithText(container, 'actions.cancel'));
 

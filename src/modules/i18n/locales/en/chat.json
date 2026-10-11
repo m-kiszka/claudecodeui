@@ -272,6 +272,7 @@
     },
     "currentPrompt": "Current prompt",
     "jumpToPrompt": "Jump to message",
+    "allPrompts": "All prompts ({{count}})",
     "showCurrentPrompt": "Show the current prompt",
     "stop": "Stop",
     "backgroundWork": "Background work",

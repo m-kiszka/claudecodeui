@@ -5,16 +5,11 @@ import type { TFunction } from 'i18next';
 import { Shimmer } from '@/shared/ui';
 import type { BackgroundTaskSummary, SessionActivity } from '@/shared/types';
 import { describeBackgroundTask, ownBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
-import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
-import CurrentPromptPopover from '@/modules/chat/composer/CurrentPromptPopover';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
   onAbort?: () => void;
   isInputFocused?: boolean;
-  /** The prompt the running turn answers; adds a tab that shows it. */
-  currentPrompt?: CurrentPrompt | null;
-  onJumpToPrompt?: (prompt: CurrentPrompt) => void;
 };
 
 const ACTION_KEYS = [
@@ -54,8 +49,6 @@ export default function ActivityIndicator({
   activity,
   onAbort,
   isInputFocused = false,
-  currentPrompt = null,
-  onJumpToPrompt,
 }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
@@ -89,6 +82,13 @@ export default function ActivityIndicator({
     return () => clearInterval(timer);
   }, [startedAt]);
 
+  const tabSurfaceClassName = [
+    'chat-activity-tab inline-flex h-8 items-center rounded-b-none rounded-t-lg border border-b-0 bg-card px-3 text-xs transition-all duration-200',
+    isInputFocused
+      ? 'border-primary/30 shadow-[0_-1px_2px_hsl(var(--foreground)/0.08),1px_0_2px_hsl(var(--foreground)/0.06),-1px_0_2px_hsl(var(--foreground)/0.06)]'
+      : 'border-border/50 shadow-[0_-1px_1px_hsl(var(--foreground)/0.04),1px_0_1px_hsl(var(--foreground)/0.03),-1px_0_1px_hsl(var(--foreground)/0.03)]',
+  ].join(' ');
+
   if (!renderedActivity) return null;
 
   const isBackground = Boolean(renderedActivity.background);
@@ -104,12 +104,6 @@ export default function ActivityIndicator({
   const elapsedLabel = minutes < 1
     ? t('claudeStatus.elapsed.seconds', { count: seconds, defaultValue: '{{count}}s' })
     : t('claudeStatus.elapsed.minutesSeconds', { minutes, seconds, defaultValue: '{{minutes}}m {{seconds}}s' });
-  const tabSurfaceClassName = [
-    'chat-activity-tab inline-flex h-8 items-center rounded-b-none rounded-t-lg border border-b-0 bg-card px-3 text-xs transition-all duration-200',
-    isInputFocused
-      ? 'border-primary/30 shadow-[0_-1px_2px_hsl(var(--foreground)/0.08),1px_0_2px_hsl(var(--foreground)/0.06),-1px_0_2px_hsl(var(--foreground)/0.06)]'
-      : 'border-border/50 shadow-[0_-1px_1px_hsl(var(--foreground)/0.04),1px_0_1px_hsl(var(--foreground)/0.03),-1px_0_1px_hsl(var(--foreground)/0.03)]',
-  ].join(' ');
 
   const statusTabClassName = `${tabSurfaceClassName} min-w-0 max-w-full gap-2`;
   const statusContent = (
@@ -135,18 +129,7 @@ export default function ActivityIndicator({
       }`}
     >
       <div className="flex items-end justify-between gap-2">
-        {/* Background work answers no prompt of its own, so its status stays plain text. */}
-        {!isBackground && currentPrompt && onJumpToPrompt ? (
-          <CurrentPromptPopover
-            prompt={currentPrompt}
-            onJumpToPrompt={onJumpToPrompt}
-            triggerClassName={statusTabClassName}
-          >
-            {statusContent}
-          </CurrentPromptPopover>
-        ) : (
-          <div className={statusTabClassName}>{statusContent}</div>
-        )}
+        <div className={statusTabClassName}>{statusContent}</div>
 
         {renderedActivity.canInterrupt && onAbort && (
           <button

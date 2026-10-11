@@ -859,8 +859,9 @@ export function useChatSessionState({
 
     const reloadExternalMessages = async () => {
       try {
-        // Skip store refresh during active streaming
-        if (!isProcessing) {
+        // Skip the refresh only while this client streams the turn itself; a
+        // turn run in the Claude CLI has no stream, only the transcript on disk.
+        if (!canAbortSession) {
           const shouldStickToBottom = isActiveRef.current && isNearBottom();
           await requestLatestMessages(selectedSession.id);
 
@@ -884,7 +885,7 @@ export function useChatSessionState({
     scrollToBottom,
     selectedProject,
     selectedSession,
-    isProcessing,
+    canAbortSession,
   ]);
 
   // Search navigation target

@@ -5,6 +5,9 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  // `!user`/`!error` in source read as important variants of `.chat-message.user`
+  // etc. in index.css, whose output inside @media loses its selectors and breaks minify.
+  blocklist: ["!user", "!error", "!assistant"],
   theme: {
     container: {
       center: true,

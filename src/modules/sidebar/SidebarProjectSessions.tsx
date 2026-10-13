@@ -166,42 +166,42 @@ export default function SidebarProjectSessions({
 
       {isSelecting && (
         <div className={cn('space-y-1', isCompact && 'px-3')}>
-            {/* Wraps rather than clips: at the narrowest sidebar width a long
-                translated "Select all loaded" leaves no room for Cancel. */}
-            <div className="flex flex-wrap items-center justify-between gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  onSetSessionSelection({
-                    projectId: project.projectId,
-                    sessionIds: new Set(allLoadedSelected ? [] : selectableSessionIds),
-                  })
-                }
-                disabled={selectableSessionIds.length === 0}
-              >
-                {selectAllLabel}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={onCancelSessionSelection}
-              >
-                {t('actions.cancel')}
-              </Button>
-            </div>
+          {/* Wraps rather than clips: at the narrowest sidebar width a long
+              translated "Select all loaded" leaves no room for Cancel. */}
+          <div className="flex flex-wrap items-center justify-between gap-1">
             <Button
-              variant="destructive"
+              variant="ghost"
               size="sm"
-              className="h-8 w-full justify-center gap-2 bg-red-600 text-xs font-medium text-white hover:bg-red-700"
-              onClick={() => onDeleteSelectedSessions(effectiveSelectedIds)}
-              disabled={effectiveSelectedIds.length === 0}
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() =>
+                onSetSessionSelection({
+                  projectId: project.projectId,
+                  sessionIds: new Set(allLoadedSelected ? [] : selectableSessionIds),
+                })
+              }
+              disabled={selectableSessionIds.length === 0}
             >
-              <Trash2 className="h-3 w-3" />
-              {t('sessions.deleteSelected', { count: effectiveSelectedIds.length })}
+              {selectAllLabel}
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={onCancelSessionSelection}
+            >
+              {t('actions.cancel')}
+            </Button>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8 w-full justify-center gap-2 bg-red-600 text-xs font-medium text-white hover:bg-red-700"
+            onClick={() => onDeleteSelectedSessions(effectiveSelectedIds)}
+            disabled={effectiveSelectedIds.length === 0}
+          >
+            <Trash2 className="h-3 w-3" />
+            {t('sessions.deleteSelected', { count: effectiveSelectedIds.length })}
+          </Button>
         </div>
       )}
 

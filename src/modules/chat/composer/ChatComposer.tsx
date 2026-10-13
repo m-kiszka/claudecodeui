@@ -455,6 +455,7 @@ export default function ChatComposer({
             {userPrompts.length > 0 && (
               <CurrentPromptPopover
                 prompts={userPrompts}
+                anchorRef={textareaRef}
                 onJumpToPrompt={onJumpToPrompt}
                 renderTrigger={({ isOpen, toggle }) => (
                   <PromptInputButton

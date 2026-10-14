@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { promises as fsPromises } from 'node:fs';
+import { promises as fsPromises, type Dirent } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
@@ -240,6 +240,47 @@ export async function initializeSessionsWatcher(): Promise<void> {
       });
     }
   }
+}
+
+/** How far back an on-demand sync looks for transcripts that changed. */
+const ON_DEMAND_SYNC_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Indexes the recently changed Claude transcripts in one project folder now,
+ * instead of when the polling watcher next looks, and broadcasts the result.
+ *
+ * Used by the sessions service when the client returns to the chat from the
+ * Shell tab: the watcher polls every few seconds, so a turn or a `/clear` run
+ * in the terminal would otherwise show up in the chat only after a delay.
+ */
+export async function syncClaudeTranscriptFolderNow(folderPath: string): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await fsPromises.readdir(folderPath, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  const cutoff = Date.now() - ON_DEMAND_SYNC_WINDOW_MS;
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.jsonl')) {
+      continue;
+    }
+
+    const filePath = path.join(folderPath, entry.name);
+    try {
+      const stat = await fsPromises.stat(filePath);
+      if (stat.mtimeMs < cutoff) {
+        continue;
+      }
+    } catch {
+      continue;
+    }
+
+    await onUpdate('change', filePath, 'claude');
+  }
+
+  await flushPendingWatcherUpdate();
 }
 
 /**

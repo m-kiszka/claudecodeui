@@ -354,6 +354,8 @@ export type NormalizedMessage = {
   isCompactSummary?: boolean;
   /** Set on the row that stands in for a compaction, so the UI can draw it as one. */
   compact?: CompactionInfo;
+  /** Set on the marker where a session's context was cleared and a new part begins. */
+  contextCleared?: boolean;
   images?: unknown;
   /** Non-image files attached to a user turn after provider history normalization. */
   files?: unknown;

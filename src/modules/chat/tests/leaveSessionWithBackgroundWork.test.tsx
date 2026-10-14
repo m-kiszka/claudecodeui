@@ -15,6 +15,7 @@ import type { Project, ProjectSession, SessionActivityMap } from '@/shared/types
 
 vi.mock('@/shared/api', () => ({
   api: {
+    syncSession: () => Promise.resolve({ ok: true }),
     providers: {
       sessionTokenUsage: () => Promise.resolve({ ok: false, json: async () => ({}) }),
     },

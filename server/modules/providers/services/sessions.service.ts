@@ -7,6 +7,7 @@ import { broadcastSessionUpserted, chatRunRegistry } from '@/modules/websocket/i
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { listBusyClaudeCliSessions } from '@/modules/providers/services/claude-cli-liveness.service.js';
 import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { syncClaudeTranscriptFolderNow } from '@/modules/providers/services/sessions-watcher.service.js';
 import type {
   BackgroundTaskSummary,
   FetchHistoryOptions,
@@ -393,6 +394,71 @@ export const sessionsService = {
       projectPath: source.project_path ?? '',
       sessionName,
     };
+  },
+
+  /**
+   * Starts a fresh context for one session while keeping it the same session.
+   *
+   * The current provider session is kept as an earlier part, which the history
+   * still draws above a "context cleared" marker, and the row is detached so
+   * the next send starts a new provider session under the same app id. Only
+   * Claude reads earlier parts back, so other providers refuse.
+   */
+  async clearSessionContextById(sessionId: string): Promise<{ sessionId: string }> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    if (session.provider !== 'claude') {
+      throw new AppError(`Clearing the context is not supported for provider "${session.provider}".`, {
+        code: 'CLEAR_CONTEXT_NOT_SUPPORTED',
+        statusCode: 409,
+      });
+    }
+    if (chatRunRegistry.isProcessing(sessionId)) {
+      throw new AppError('The session is still running.', {
+        code: 'SESSION_BUSY',
+        statusCode: 409,
+      });
+    }
+
+    // A session that never ran has no context to clear.
+    if (session.provider_session_id && session.jsonl_path) {
+      sessionsDb.markProviderSessionSuperseded({
+        providerSessionId: session.provider_session_id,
+        provider: session.provider,
+        sessionId,
+        jsonlPath: session.jsonl_path,
+      });
+      sessionsDb.detachProviderSession(sessionId);
+      await broadcastSessionUpserted(sessionId);
+    }
+
+    return { sessionId };
+  },
+
+  /**
+   * Picks up what happened to one session outside the chat right away, rather
+   * than on the watcher's next poll. Only Claude transcripts are synced here.
+   */
+  async syncSessionTranscriptsById(sessionId: string): Promise<{ synced: boolean }> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session || session.provider !== 'claude') {
+      return { synced: false };
+    }
+
+    const folderPath = session.jsonl_path
+      ? path.dirname(session.jsonl_path)
+      : sessionsDb.getSupersededTranscripts(sessionId, session.provider).map((part) => path.dirname(part.jsonlPath)).at(-1);
+    if (!folderPath) {
+      return { synced: false };
+    }
+
+    await syncClaudeTranscriptFolderNow(folderPath);
+    return { synced: true };
   },
 
   /**

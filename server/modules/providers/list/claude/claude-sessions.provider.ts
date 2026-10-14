@@ -688,6 +688,31 @@ function dropSupersededPromptBranches(rows: AnyRecord[]): AnyRecord[] {
 /** When the CLI run behind a session started (epoch ms), or null when none is up. */
 type LiveRunStartTimeProbe = (sessionId: string) => number | null;
 
+/** The CLI's names for clearing the conversation, as transcripts record them. */
+const CLEAR_COMMAND_NAMES = new Set(['/clear', '/reset', '/new']);
+
+/** Raw-row type of the marker drawn where a session's context was cleared. */
+const CONTEXT_CLEARED_ROW_TYPE = 'cloudcli-context-cleared';
+
+/**
+ * The marker row that opens a later part of a cleared session.
+ *
+ * It sorts just before the part's first row, so the history's timestamp sort
+ * keeps it at the seam.
+ */
+function createContextClearedRow(partRows: AnyRecord[]): AnyRecord {
+  const firstTimestamp = partRows
+    .map((row) => Date.parse(String(row.timestamp ?? '')))
+    .find((time) => Number.isFinite(time));
+  const timestamp = new Date((firstTimestamp ?? Date.now()) - 1).toISOString();
+  const firstUuid = partRows.find((row) => typeof row.uuid === 'string')?.uuid;
+  return {
+    type: CONTEXT_CLEARED_ROW_TYPE,
+    uuid: firstUuid ? `context-cleared-${firstUuid}` : undefined,
+    timestamp,
+  };
+}
+
 async function getSessionMessages(
   sessionId: string,
   providerSessionId: string,
@@ -700,15 +725,40 @@ async function getSessionMessages(
     // on disk carry the provider-native id — both ids are needed here.
     const jsonLPath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
 
-    if (!jsonLPath) {
+    // A session whose context was cleared lives in several transcripts. The
+    // earlier ones are drawn above the current one, each later part opened by
+    // a marker row, so the conversation reads as one with a visible cut. Right
+    // after a clear from the chat there is no current transcript yet, only the
+    // earlier parts.
+    const parts = sessionsDb.getSupersededTranscripts(sessionId, PROVIDER);
+    if (jsonLPath) {
+      parts.push({ providerSessionId, jsonlPath: jsonLPath });
+    }
+    const lastPart = parts.at(-1);
+    if (!lastPart) {
       return { messages: [], total: 0, hasMore: false };
     }
 
-    const projectDir = path.dirname(jsonLPath);
-
-    const messages = dropSupersededPromptBranches(
-      await readTranscriptRows(jsonLPath, providerSessionId),
-    );
+    const projectDir = path.dirname(lastPart.jsonlPath);
+    const messages: AnyRecord[] = [];
+    // Which part each agent was launched from: its transcript sits in that
+    // part's own folder, not the current one's.
+    const partIdByAgentId = new Map<string, string>();
+    for (const [index, part] of parts.entries()) {
+      const partRows = dropSupersededPromptBranches(
+        await readTranscriptRows(part.jsonlPath, part.providerSessionId).catch(() => []),
+      );
+      for (const row of partRows) {
+        const agentId = row.toolUseResult?.agentId;
+        if (agentId) {
+          partIdByAgentId.set(String(agentId), part.providerSessionId);
+        }
+      }
+      if (index > 0 && partRows.length > 0) {
+        messages.push(createContextClearedRow(partRows));
+      }
+      messages.push(...partRows);
+    }
 
     const agentIds = new Set<string>();
     for (const message of messages) {
@@ -726,7 +776,11 @@ async function getSessionMessages(
       info: Omit<SubagentInfo, 'status'>;
     }>();
     for (const agentId of agentIds) {
-      const located = await findClaudeSubagentTranscript(projectDir, providerSessionId, agentId);
+      const located = await findClaudeSubagentTranscript(
+        projectDir,
+        partIdByAgentId.get(agentId) ?? providerSessionId,
+        agentId,
+      );
       if (!located) {
         continue;
       }
@@ -1240,6 +1294,19 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('claude');
 
+    if (raw.type === CONTEXT_CLEARED_ROW_TYPE) {
+      return [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'text',
+        role: 'assistant',
+        content: 'Context cleared',
+        contextCleared: true,
+      })];
+    }
+
     // The live stream reports on background work — a launched workflow, agent
     // or shell command — through four `system` subtypes that the transcript
     // never records. They normalize to one `task_status` kind so the client
@@ -1448,6 +1515,11 @@ export class ClaudeSessionsProvider implements IProviderSessions {
          * no longer disappears from history.
          */
         const localCommandPayload = parseLocalCommandPayload(text);
+        // A clear opens a transcript; where it continues a session the history
+        // reader already draws the cut, and alone it has nothing to cut from.
+        if (localCommandPayload && CLEAR_COMMAND_NAMES.has(localCommandPayload.commandName.trim())) {
+          return messages;
+        }
         if (localCommandPayload) {
           const displayText = buildLocalCommandDisplayText(localCommandPayload);
           if (displayText) {

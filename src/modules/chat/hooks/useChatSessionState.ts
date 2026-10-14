@@ -853,6 +853,16 @@ export function useChatSessionState({
     void refreshCoordinatorRef.current?.flushPending(activeSessionId);
   }, [activeSessionId, isActive, sessionStore]);
 
+  // Returning to the chat (typically from the Shell tab) asks the server to
+  // index this session's transcripts now. The file watcher polls every few
+  // seconds, so a turn or a `/clear` run in the terminal would otherwise reach
+  // the chat late; the resulting upsert drives the reload below.
+  const selectedSessionId = selectedSession?.id ?? null;
+  useEffect(() => {
+    if (!isActive || !selectedSessionId) return;
+    void api.syncSession(selectedSessionId).catch(() => undefined);
+  }, [isActive, selectedSessionId]);
+
   // External message update (e.g. WebSocket reconnect, background refresh)
   useEffect(() => {
     if (!externalMessageUpdate || !selectedSession || !selectedProject) return;

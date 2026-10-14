@@ -397,6 +397,26 @@ export const sessionsDb = {
   },
 
   /**
+   * The earlier provider sessions of one session, oldest first.
+   *
+   * Consumed by the Claude history reader, which draws a session whose
+   * context was cleared as one transcript: every part it left behind, then the
+   * current one. Rows without a transcript on record are skipped.
+   */
+  getSupersededTranscripts(sessionId: string, provider: string): Array<{ providerSessionId: string; jsonlPath: string }> {
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT provider_session_id, jsonl_path FROM superseded_provider_sessions
+         WHERE session_id = ? AND provider = ? AND jsonl_path IS NOT NULL
+         ORDER BY created_at ASC, rowid ASC`
+      )
+      .all(sessionId, provider) as Array<{ provider_session_id: string; jsonl_path: string }>;
+
+    return rows.map((row) => ({ providerSessionId: row.provider_session_id, jsonlPath: row.jsonl_path }));
+  },
+
+  /**
    * Forgets what a session left behind, once the session itself is gone.
    *
    * Without this the record outlives the row it was written for and keeps the

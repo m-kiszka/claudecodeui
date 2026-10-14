@@ -5,6 +5,7 @@ import path from 'node:path';
 import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
+import { claudeShellSessions } from '@/modules/providers/index.js';
 import { parseIncomingJsonObject, stripAnsiSequences } from '@/shared/utils.js';
 
 type ShellIncomingMessage = {
@@ -581,6 +582,7 @@ export function handleShellConnection(
             }
             oldSession.pty.kill();
             ptySessionsMap.delete(ptySessionKey);
+            claudeShellSessions.detach(ptySessionKey);
           }
         }
 
@@ -674,6 +676,11 @@ export function handleShellConnection(
           sessionId,
           claudeColorScheme,
         });
+        // A `/clear` typed into a Claude CLI resumed for an app session should
+        // continue that session rather than start an unrelated one.
+        if (provider === 'claude' && !isPlainShell && sessionId && resumeSessionId) {
+          claudeShellSessions.attach(ptySessionKey, sessionId, resolvedProjectPath);
+        }
 
         shellProcess.onData((chunk) => {
           if (!ptySessionKey) {
@@ -777,6 +784,7 @@ export function handleShellConnection(
           }
 
           ptySessionsMap.delete(ptySessionKey);
+          claudeShellSessions.detach(ptySessionKey);
           shellProcess = null;
         });
 
@@ -807,7 +815,11 @@ export function handleShellConnection(
 
       if (data.type === 'input') {
         if (shellProcess) {
-          shellProcess.write(readString(data.data));
+          const input = readString(data.data);
+          shellProcess.write(input);
+          if (ptySessionKey) {
+            claudeShellSessions.recordInput(ptySessionKey, input);
+          }
         }
         return;
       }
@@ -860,6 +872,7 @@ export function handleShellConnection(
 
       session.pty.kill();
       ptySessionsMap.delete(ptySessionKey as string);
+      claudeShellSessions.detach(ptySessionKey as string);
     }, PTY_SESSION_TIMEOUT);
   });
 

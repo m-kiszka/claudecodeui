@@ -12,3 +12,7 @@ export { sessionsService } from './services/sessions.service.js';
 
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
+
+// claudeShellSessions: used by the websocket module's shell service to tie each
+// Claude CLI it starts to its app session, so a `/clear` there continues it.
+export { claudeShellSessions } from './services/claude-shell-sessions.service.js';

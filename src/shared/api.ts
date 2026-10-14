@@ -274,6 +274,13 @@ export const api = {
   // `upToAnchorId` (all of it when omitted). The source is left untouched.
   forkSession: (sessionId: string, body: { upToAnchorId?: string; title?: string } = {}) =>
     post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/fork`, body),
+  // Keeps the session but starts its context afresh; the earlier part stays in
+  // its history above a "context cleared" marker.
+  clearSessionContext: (sessionId: string) =>
+    post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/clear-context`),
+  // Indexes what the session's terminal did now instead of on the next poll.
+  syncSession: (sessionId: string) =>
+    post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/sync`),
   renameSession: (sessionId: string, summary: string) =>
     put(`/api/providers/sessions/${sessionId}`, { summary }),
   // What one agent of a workflow run did, read from its transcript on demand

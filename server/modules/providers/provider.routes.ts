@@ -936,6 +936,24 @@ router.post(
   }),
 );
 
+router.post(
+  '/sessions/:sessionId/clear-context',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await sessionsService.clearSessionContextById(sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.post(
+  '/sessions/:sessionId/sync',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await sessionsService.syncSessionTranscriptsById(sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
 router.put(
   '/sessions/:sessionId',
   asyncHandler(async (req: Request, res: Response) => {

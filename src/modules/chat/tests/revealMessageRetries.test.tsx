@@ -14,7 +14,10 @@ import type { Project, ProjectSession } from '@/shared/types';
  */
 
 vi.mock('@/shared/api', () => ({
-  api: { providers: { sessionTokenUsage: () => Promise.resolve({ ok: false, json: async () => ({}) }) } },
+  api: {
+    providers: { sessionTokenUsage: () => Promise.resolve({ ok: false, json: async () => ({}) }) },
+    syncSession: () => Promise.resolve({ ok: true }),
+  },
 }));
 
 const project: Project = { projectId: 'project-1', path: '/repo', fullPath: '/repo', displayName: 'Repo', isStarred: false };

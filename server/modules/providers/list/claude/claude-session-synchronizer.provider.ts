@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { claudeShellSessions } from '@/modules/providers/services/claude-shell-sessions.service.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -11,6 +12,10 @@ import {
   readFileTimestamps,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+
+/** How many leading rows may come before a cleared conversation's `/clear`. */
+const CLEAR_COMMAND_SCAN_ROWS = 12;
+const CLEAR_COMMAND_TAG = /<command-name>\/(clear|reset|new)<\/command-name>/;
 
 type ParsedSession = {
   sessionId: string;
@@ -60,7 +65,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       }
 
       const parsed = await this.processSessionFile(filePath, nameMap);
-      if (!parsed) {
+      if (!parsed || sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
         continue;
       }
 
@@ -93,8 +98,16 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     const nameMap = await buildLookupMap(path.join(this.claudeHome, 'history.jsonl'), 'sessionId', 'display');
     const parsed = await this.processSessionFile(filePath, nameMap);
-    if (!parsed) {
+    // A transcript a session has moved on from (an earlier part of a cleared
+    // conversation) belongs to that session; indexing it again would bring it
+    // back as a sidebar entry of its own.
+    if (!parsed || sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
       return null;
+    }
+
+    const continuedSessionId = await this.continueClearedShellSession(filePath, parsed);
+    if (continuedSessionId) {
+      return continuedSessionId;
     }
 
     const timestamps = await readFileTimestamps(filePath);
@@ -107,6 +120,55 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.updatedAt,
       filePath
     );
+  }
+
+  /**
+   * Moves a session onto the transcript a `/clear` in its Shell tab started.
+   *
+   * The CLI begins a cleared conversation in a new file that names no parent,
+   * so left alone it would show up as an unrelated session. When the file is
+   * new to the index, opens with the clear command, and a Shell tab in the same
+   * project just had a clear typed into it, the session that tab belongs to
+   * takes the file over and keeps the old one as an earlier part.
+   */
+  private async continueClearedShellSession(filePath: string, parsed: ParsedSession): Promise<string | null> {
+    if (sessionsDb.getSessionByProviderSessionId(parsed.sessionId) ?? sessionsDb.getSessionById(parsed.sessionId)) {
+      return null;
+    }
+    if (!(await this.startsWithClearCommand(filePath))) {
+      return null;
+    }
+
+    const sessionId = claudeShellSessions.claimClearedSession(parsed.projectPath);
+    const session = sessionId ? sessionsDb.getSessionById(sessionId) : null;
+    if (!session || session.provider !== this.provider) {
+      return null;
+    }
+
+    if (session.provider_session_id && session.provider_session_id !== parsed.sessionId) {
+      sessionsDb.markProviderSessionSuperseded({
+        providerSessionId: session.provider_session_id,
+        provider: this.provider,
+        sessionId: session.session_id,
+        jsonlPath: session.jsonl_path,
+      });
+    }
+    sessionsDb.repointSessionToProviderSession(session.session_id, {
+      providerSessionId: parsed.sessionId,
+      jsonlPath: filePath,
+    });
+
+    return session.session_id;
+  }
+
+  private async startsWithClearCommand(filePath: string): Promise<boolean> {
+    try {
+      const content = await readFile(filePath, 'utf8');
+      const leadingRows = content.split(/\r?\n/, CLEAR_COMMAND_SCAN_ROWS);
+      return leadingRows.some((row) => CLEAR_COMMAND_TAG.test(row));
+    } catch {
+      return false;
+    }
   }
 
   /**

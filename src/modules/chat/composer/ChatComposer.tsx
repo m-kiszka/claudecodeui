@@ -10,7 +10,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon } from 'lucide-react';
+import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon, ScissorsIcon } from 'lucide-react';
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
@@ -28,6 +28,7 @@ import {
 import CommandMenu from '@/modules/chat/composer/CommandMenu';
 import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
 import CurrentPromptPopover from '@/modules/chat/composer/CurrentPromptPopover';
+import type { HandoffPhase } from '@/modules/chat/hooks/useHandoffAndClear';
 import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
 import ComposerAttachment from '@/modules/chat/composer/ComposerAttachment';
 import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
@@ -57,6 +58,9 @@ type ChatComposerProps = {
   /** The user's prompts in this transcript, newest first. */
   userPrompts: CurrentPrompt[];
   onJumpToPrompt: (prompt: CurrentPrompt) => void;
+  /** Null hides the hand-off-and-clear button (setting off or not a Claude session). */
+  handoffPhase: HandoffPhase | null;
+  onHandoffAndClear: () => void;
   permissionMode: PermissionMode;
   availablePermissionModes: PermissionMode[];
   onSelectPermissionMode: (mode: PermissionMode) => void;
@@ -134,6 +138,8 @@ export default function ChatComposer({
   onAbortSession,
   userPrompts,
   onJumpToPrompt,
+  handoffPhase,
+  onHandoffAndClear,
   permissionMode,
   availablePermissionModes,
   onSelectPermissionMode,
@@ -468,6 +474,21 @@ export default function ChatComposer({
                   </PromptInputButton>
                 )}
               />
+            )}
+
+            {handoffPhase !== null && (
+              <PromptInputButton
+                tooltip={{
+                  content: handoffPhase === 'idle'
+                    ? t('input.handoffAndClear')
+                    : t('input.handoffAndClearRunning'),
+                }}
+                onClick={onHandoffAndClear}
+                disabled={handoffPhase !== 'idle' || isLoading || hasInput}
+                aria-label={t('input.handoffAndClear')}
+              >
+                {handoffPhase === 'idle' ? <ScissorsIcon /> : <Loader2 className="animate-spin" />}
+              </PromptInputButton>
             )}
 
             {onVoiceTranscript && voiceAvailable && (

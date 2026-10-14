@@ -60,7 +60,7 @@ function WorkspaceMain({
   onRenameSession,
 }: WorkspaceMainProps) {
   const preferences = useUiPreferences();
-  const { showRawParameters, showThinking, sendByCtrlEnter, queueInterrupts } = preferences;
+  const { showRawParameters, showThinking, sendByCtrlEnter, queueInterrupts, handoffAndClear } = preferences;
 
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const browserUseEnabled = useBrowserUseEnabled();
@@ -173,6 +173,7 @@ function WorkspaceMain({
                 showThinking={showThinking}
                 sendByCtrlEnter={sendByCtrlEnter}
                 queueInterrupts={queueInterrupts}
+                handoffAndClear={handoffAndClear}
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? showAllTasks : null}

@@ -17,6 +17,8 @@ export type UiPreferences = {
   voiceEnabled: boolean;
   /** Queueing a message while a turn runs stops that turn, so the message is sent at once. */
   queueInterrupts: boolean;
+  /** Shows the composer button that hands the session off and clears its context. */
+  handoffAndClear: boolean;
 };
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -32,6 +34,7 @@ const DEFAULTS: UiPreferences = {
   sidebarVisible: true,
   voiceEnabled: false,
   queueInterrupts: false,
+  handoffAndClear: false,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];

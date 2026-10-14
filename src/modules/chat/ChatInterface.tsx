@@ -8,6 +8,7 @@ import { useWebSocket } from '@/shared/context/WebSocketContext';
 import PermissionContext from '@/modules/chat/context/PermissionContext';
 import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { TranscriptSessionContext } from '@/modules/chat/context/TranscriptSessionContext';
+import { useHandoffAndClear } from '@/modules/chat/hooks/useHandoffAndClear';
 import { api } from '@/shared/api';
 import type {
   ChatMessage,
@@ -46,6 +47,7 @@ type ChatInterfaceProps = {
   showThinking?: boolean;
   sendByCtrlEnter?: boolean;
   queueInterrupts?: boolean;
+  handoffAndClear?: boolean;
   externalMessageUpdate?: number;
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
@@ -71,6 +73,7 @@ function ChatInterface({
   showThinking,
   sendByCtrlEnter,
   queueInterrupts,
+  handoffAndClear = false,
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
@@ -222,6 +225,7 @@ function ChatInterface({
     editQueuedDraft,
     deleteQueuedDraft,
     handleVoiceTranscript,
+    sendPrompt,
     handleInputChange,
     handleKeyDown,
     handlePaste,
@@ -411,6 +415,15 @@ function ChatInterface({
 
   const userPrompts = useMemo(() => findUserPrompts(chatMessages), [chatMessages]);
 
+  const handoff = useHandoffAndClear({
+    sessionId: currentSessionId || selectedSession?.id || null,
+    isProcessing,
+    chatMessages,
+    sendPrompt,
+  });
+  // Only Claude sessions keep their earlier parts after a clear.
+  const canHandoffAndClear = handoffAndClear && provider === 'claude' && Boolean(currentSessionId || selectedSession?.id);
+
   // Rows keep their timestamp attribute even while lazily unmounted, so the
   // prompt can be found and scrolled to wherever it sits in the transcript.
   const handleJumpToPrompt = useCallback((prompt: CurrentPrompt) => {
@@ -556,6 +569,8 @@ function ChatInterface({
           onAbortSession={handleAbortSession}
           userPrompts={userPrompts}
           onJumpToPrompt={handleJumpToPrompt}
+          handoffPhase={canHandoffAndClear ? handoff.phase : null}
+          onHandoffAndClear={handoff.start}
           permissionMode={permissionMode}
           availablePermissionModes={availablePermissionModes}
           onSelectPermissionMode={selectPermissionMode}

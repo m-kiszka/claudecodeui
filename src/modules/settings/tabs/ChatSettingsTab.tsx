@@ -9,7 +9,7 @@ import { useSetUiPreference, useUiPreferences } from '@/shared/context/UiPrefere
 /** Rendered by Settings for the "chat" tab, covering how the composer sends messages. */
 export default function ChatSettingsTab() {
   const { t } = useTranslation('settings');
-  const { queueInterrupts } = useUiPreferences();
+  const { queueInterrupts, handoffAndClear } = useUiPreferences();
   const setUiPreference = useSetUiPreference();
 
   return (
@@ -26,6 +26,23 @@ export default function ChatSettingsTab() {
               checked={queueInterrupts}
               onChange={(value) => setUiPreference('queueInterrupts', value)}
               ariaLabel={t('chatSettings.queue.interrupts', { defaultValue: 'Queued messages interrupt' })}
+            />
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsSection title={t('chatSettings.context.title', { defaultValue: 'Context' })}>
+        <SettingsCard>
+          <SettingsRow
+            label={t('chatSettings.context.handoffAndClear', { defaultValue: 'Hand off and clear button' })}
+            description={t('chatSettings.context.handoffAndClearDescription', {
+              defaultValue: 'Adds a composer button that runs /handoff, clears the context and resumes from the handoff in the same conversation.',
+            })}
+          >
+            <SettingsToggle
+              checked={handoffAndClear}
+              onChange={(value) => setUiPreference('handoffAndClear', value)}
+              ariaLabel={t('chatSettings.context.handoffAndClear', { defaultValue: 'Hand off and clear button' })}
             />
           </SettingsRow>
         </SettingsCard>

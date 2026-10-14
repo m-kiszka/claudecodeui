@@ -1060,6 +1060,14 @@ export function useChatComposerState({
     if (send) handleSubmitRef.current?.(createFakeSubmitEvent());
   }, [setInput]);
 
+  // Sends a prompt the app composed itself (the handoff steps), through the
+  // same path as a typed one.
+  const sendPrompt = useCallback((text: string) => {
+    setInput(text);
+    inputValueRef.current = text;
+    handleSubmitRef.current?.(createFakeSubmitEvent());
+  }, [setInput]);
+
   useEffect(() => {
     inputValueRef.current = input;
   }, [input]);
@@ -1333,6 +1341,7 @@ export function useChatComposerState({
   return {
     input,
     setInput,
+    sendPrompt,
     editingAnchorId,
     beginEditMessage,
     cancelEditMessage,

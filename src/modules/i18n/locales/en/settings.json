@@ -127,6 +127,11 @@
       "title": "Queued messages",
       "interrupts": "Queued messages interrupt",
       "interruptsDescription": "A message sent while a response is running stops it and is sent right away, instead of waiting for it to finish."
+    },
+    "context": {
+      "title": "Context",
+      "handoffAndClear": "Hand off and clear button",
+      "handoffAndClearDescription": "Adds a composer button that runs /handoff, clears the context and resumes from the handoff in the same conversation."
     }
   },
   "mainTabs": {

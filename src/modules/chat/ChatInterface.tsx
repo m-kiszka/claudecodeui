@@ -79,6 +79,7 @@ function ChatInterface({
   onShowAllTasks,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
+  const clearAndContinueRef = useRef<(() => Promise<string | null>) | null>(null);
   const { subscribe } = useWebSocket();
   const { t } = useTranslation('chat');
   const processingSessions = useProcessingSessions();
@@ -264,6 +265,9 @@ function ChatInterface({
     onSessionEstablished: handleSessionEstablished,
     onFileOpen,
     onShowSettings,
+    // The handoff hook needs the composer's sendPrompt, so it is reached
+    // through a ref instead of being created before the composer.
+    onClearAndContinue: () => clearAndContinueRef.current?.() ?? Promise.resolve('Not available here.'),
     scrollToBottom,
     addMessage,
     setIsUserScrolledUp,
@@ -421,6 +425,9 @@ function ChatInterface({
     chatMessages,
     sendPrompt,
   });
+  useEffect(() => {
+    clearAndContinueRef.current = handoff.continueFromLatestHandoff;
+  }, [handoff.continueFromLatestHandoff]);
   // Only Claude sessions keep their earlier parts after a clear.
   const canHandoffAndClear = handoffAndClear && provider === 'claude' && Boolean(currentSessionId || selectedSession?.id);
 

@@ -204,6 +204,18 @@ const builtInCommands = [
     namespace: "builtin",
     metadata: { type: "builtin" },
   },
+  {
+    name: "/clear",
+    description: "Clear the conversation context and continue in the same session",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
+  {
+    name: "/clear-and-continue",
+    description: "Clear the context and resume from this conversation's latest handoff",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
 ];
 
 /**
@@ -425,6 +437,24 @@ Custom commands can be created in:
           ? `Opening CLAUDE.md at ${claudeMdPath}`
           : `CLAUDE.md not found at ${claudeMdPath}. Create it to store project-specific instructions.`,
       },
+    };
+  },
+
+  // The clearing itself goes through the sessions API, which the client calls
+  // for the open session; this only tells it to.
+  "/clear": async () => {
+    return {
+      type: "builtin",
+      action: "clear",
+      data: {},
+    };
+  },
+
+  "/clear-and-continue": async () => {
+    return {
+      type: "builtin",
+      action: "clear-and-continue",
+      data: {},
     };
   },
 

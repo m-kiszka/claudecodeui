@@ -81,5 +81,21 @@ export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, send
     })();
   }, [chatMessages, isProcessing, phase, sendPrompt, sessionId]);
 
-  return { phase, start };
+  /**
+   * Clears the context and resumes from the latest handoff this conversation
+   * wrote. Resolves to an error message for the user, or null on success.
+   */
+  const continueFromLatestHandoff = useCallback(async (): Promise<string | null> => {
+    if (!sessionId) return 'There is no session to clear.';
+    if (isProcessing) return 'Wait for the current response to finish first.';
+    const handoffId = findHandoffId(chatMessages, 0);
+    if (!handoffId) return 'No handoff was written in this conversation yet. Run /handoff first.';
+
+    const response = await api.clearSessionContext(sessionId);
+    if (!response.ok) return `Clearing the context failed (${response.status}).`;
+    sendPrompt(`/handoff ${handoffId}`);
+    return null;
+  }, [chatMessages, isProcessing, sendPrompt, sessionId]);
+
+  return { phase, start, continueFromLatestHandoff };
 }

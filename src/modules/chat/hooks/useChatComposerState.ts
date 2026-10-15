@@ -65,6 +65,8 @@ type UseChatComposerStateArgs = {
   onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
+  /** Runs `/clear-and-continue`; resolves to an error message, or null on success. */
+  onClearAndContinue?: () => Promise<string | null>;
   scrollToBottom: () => void;
   addMessage: (msg: ChatMessage) => void;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
@@ -190,6 +192,7 @@ export function useChatComposerState({
   onSessionEstablished,
   onFileOpen,
   onShowSettings,
+  onClearAndContinue,
   scrollToBottom,
   addMessage,
   setIsUserScrolledUp,
@@ -377,11 +380,38 @@ export function useChatComposerState({
           onShowSettings?.();
           break;
 
+        case 'clear-and-continue':
+          void (onClearAndContinue?.() ?? Promise.resolve('Not available here.')).then((error) => {
+            if (!error) return;
+            addMessage({ type: 'assistant', content: `Warning: ${error}`, timestamp: Date.now() });
+          });
+          break;
+
+        case 'clear': {
+          // Keeps the session: its earlier part stays above a "Context
+          // cleared" marker and the next message starts a fresh context.
+          const sessionId = currentSessionId || selectedSession?.id;
+          if (!sessionId) break;
+          void api.clearSessionContext(sessionId).then(async (response) => {
+            if (response.ok) {
+              addMessage({ type: 'assistant', content: 'Context cleared', contextCleared: true, timestamp: Date.now() });
+              return;
+            }
+            const errorData = await response.json().catch(() => null);
+            addMessage({
+              type: 'assistant',
+              content: `Warning: ${errorData?.error?.message || errorData?.message || `Clearing the context failed (${response.status})`}`,
+              timestamp: Date.now(),
+            });
+          });
+          break;
+        }
+
         default:
           console.warn('Unknown built-in command action:', action);
       }
     },
-    [onFileOpen, onShowSettings, addMessage],
+    [onFileOpen, onShowSettings, onClearAndContinue, addMessage, currentSessionId, selectedSession?.id],
   );
 
   const closeCommandModal = useCallback(() => {

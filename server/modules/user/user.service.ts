@@ -27,6 +27,7 @@ type UserDependencies = {
   drafts: {
     getDrafts(userId: number): DraftRecord[];
     saveDraft(userId: number, scope: string, draft: { text: string; queuedMessage: unknown | null }): void;
+    saveDraftText(userId: number, scope: string, text: string): void;
     deleteDraft(userId: number, scope: string): void;
   };
   readSystemGitConfig(): Promise<GitConfig>;
@@ -173,6 +174,14 @@ export function createUserService(dependencies: UserDependencies) {
           code: 'DRAFT_TEXT_TOO_LONG',
           statusCode: 413,
         });
+      }
+
+      // A save without `queuedMessage` carries text only; the queue is left to
+      // the writes that change it, so a late text save cannot revive a turn the
+      // dispatcher already claimed.
+      if (!Object.prototype.hasOwnProperty.call(payload, 'queuedMessage')) {
+        dependencies.drafts.saveDraftText(userId, scope, text);
+        return { success: true };
       }
 
       dependencies.drafts.saveDraft(userId, scope, {

@@ -52,6 +52,12 @@ const listeners = new Set<() => void>();
 
 let drafts = new Map<string, DraftRecord>();
 const pendingScopes = new Set<string>();
+/**
+ * Scopes whose queued message changed since it was last sent to the server.
+ * Only those writes carry the queue: a text-only save must not send back a
+ * queued turn the server has claimed and sent in the meantime.
+ */
+const queueChangedScopes = new Set<string>();
 let serverWriteTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
@@ -121,18 +127,18 @@ function flushServerWrites(): void {
     // A save that fails must never surface as an unhandled rejection out of a
     // timer callback: the mirror already holds the draft, and the next
     // keystroke re-sends it.
+    const queueChanged = queueChangedScopes.delete(scope);
     try {
-      if (!draft || isEmptyDraft(draft)) {
+      if (queueChanged && (!draft || isEmptyDraft(draft))) {
         void api.user.deleteDraft(scope).catch((error: unknown) => {
           console.error('Failed to delete chat draft:', error);
         });
         continue;
       }
 
-      void api.user.saveDraft(scope, {
-        text: draft.text,
-        queuedMessage: draft.queuedMessage,
-      }).catch((error: unknown) => {
+      void api.user.saveDraft(scope, queueChanged
+        ? { text: draft?.text ?? '', queuedMessage: draft?.queuedMessage ?? null }
+        : { text: draft?.text ?? '' }).catch((error: unknown) => {
         console.error('Failed to save chat draft:', error);
       });
     } catch (error) {
@@ -174,6 +180,9 @@ function updateDraft(scope: string, update: Partial<DraftRecord>): void {
   }
   drafts = nextDrafts;
 
+  if (next.queuedMessage !== current.queuedMessage) {
+    queueChangedScopes.add(scope);
+  }
   writeMirror();
   queueServerWrite(scope);
   notifyListeners();
@@ -287,6 +296,7 @@ export async function hydrateChatDrafts(): Promise<void> {
 export function resetChatDrafts(): void {
   drafts = new Map();
   pendingScopes.clear();
+  queueChangedScopes.clear();
   if (serverWriteTimer !== null) {
     clearTimeout(serverWriteTimer);
     serverWriteTimer = null;

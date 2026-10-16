@@ -52,6 +52,7 @@ const userService = createUserService({
   drafts: {
     getDrafts: (userId) => sessionDraftsDb.getDrafts(userId),
     saveDraft: (userId, scope, draft) => sessionDraftsDb.saveDraft(userId, scope, draft),
+    saveDraftText: (userId, scope, text) => sessionDraftsDb.saveDraftText(userId, scope, text),
     deleteDraft: (userId, scope) => sessionDraftsDb.deleteDraft(userId, scope),
   },
   readSystemGitConfig,

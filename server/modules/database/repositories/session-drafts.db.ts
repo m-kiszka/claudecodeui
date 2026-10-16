@@ -163,6 +163,30 @@ export const sessionDraftsDb = {
     );
   },
 
+  /**
+   * Writes only a scope's composer text, leaving its queued message as the
+   * server has it.
+   *
+   * Text is saved on a debounce, so by the time it lands the dispatcher may
+   * have claimed the queued turn. Writing the client's older copy of the queue
+   * along with it put the turn back and got it sent again.
+   */
+  saveDraftText(userId: number, scope: string, text: string): void {
+    const db = getConnection();
+    db.prepare(
+      `INSERT INTO session_drafts (user_id, draft_scope, draft_text, queued_message, updated_at)
+       VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id, draft_scope) DO UPDATE SET
+         draft_text = excluded.draft_text,
+         updated_at = CURRENT_TIMESTAMP`
+    ).run(userId, scope, text);
+    // Clearing the text of a scope with no queued turn leaves nothing to keep.
+    db.prepare(
+      `DELETE FROM session_drafts
+       WHERE user_id = ? AND draft_scope = ? AND draft_text = '' AND queued_message IS NULL`
+    ).run(userId, scope);
+  },
+
   deleteDraft(userId: number, scope: string): void {
     const db = getConnection();
     db.prepare('DELETE FROM session_drafts WHERE user_id = ? AND draft_scope = ?')

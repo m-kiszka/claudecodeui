@@ -20,6 +20,7 @@ function createDependencies(overrides: Partial<UserDependencies> = {}): UserDepe
     drafts: {
       getDrafts: () => [],
       saveDraft: () => undefined,
+      saveDraftText: () => undefined,
       deleteDraft: () => undefined,
     },
     readSystemGitConfig: async () => ({ git_name: null, git_email: null }),
@@ -103,6 +104,7 @@ test('saveDraft stores the text and queued message under the given scope', () =>
     drafts: {
       getDrafts: () => [],
       saveDraft: (...args) => saved.push(args),
+      saveDraftText: () => undefined,
       deleteDraft: () => undefined,
     },
   }));
@@ -119,19 +121,38 @@ test('saveDraft stores the text and queued message under the given scope', () =>
   }]]);
 });
 
-test('saveDraft defaults a missing queued message to null rather than dropping the row', () => {
+test('saveDraft without a queued message saves only the text, leaving the queue alone', () => {
   const saved: unknown[][] = [];
+  const savedText: unknown[][] = [];
   const service = createUserService(createDependencies({
     drafts: {
       getDrafts: () => [],
       saveDraft: (...args) => saved.push(args),
+      saveDraftText: (...args) => savedText.push(args),
       deleteDraft: () => undefined,
     },
   }));
 
   service.saveDraft(5, 'session-1', { scope: 'session-1', text: 'typing' });
 
-  assert.deepEqual(saved, [[5, 'session-1', { text: 'typing', queuedMessage: null }]]);
+  assert.deepEqual(saved, []);
+  assert.deepEqual(savedText, [[5, 'session-1', 'typing']]);
+});
+
+test('saveDraft with an explicit null queued message clears the queue', () => {
+  const saved: unknown[][] = [];
+  const service = createUserService(createDependencies({
+    drafts: {
+      getDrafts: () => [],
+      saveDraft: (...args) => saved.push(args),
+      saveDraftText: () => undefined,
+      deleteDraft: () => undefined,
+    },
+  }));
+
+  service.saveDraft(5, 'session-1', { scope: 'session-1', text: '', queuedMessage: null });
+
+  assert.deepEqual(saved, [[5, 'session-1', { text: '', queuedMessage: null }]]);
 });
 
 test('saveDraft rejects a blank or over-long scope', () => {

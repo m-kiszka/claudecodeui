@@ -1091,12 +1091,13 @@ export function useChatComposerState({
   }, [setInput]);
 
   // Sends a prompt the app composed itself (the handoff steps), through the
-  // same path as a typed one.
+  // same path as a typed one. Only the ref the send reads is set: putting the
+  // text into the input state would also save it as the draft, and the draft
+  // sync could bring it back into the field after the send cleared it.
   const sendPrompt = useCallback((text: string) => {
-    setInput(text);
     inputValueRef.current = text;
     handleSubmitRef.current?.(createFakeSubmitEvent());
-  }, [setInput]);
+  }, []);
 
   useEffect(() => {
     inputValueRef.current = input;

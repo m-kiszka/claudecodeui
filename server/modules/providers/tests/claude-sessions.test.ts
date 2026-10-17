@@ -2189,3 +2189,81 @@ test('synchronizeFile skips non-jsonl files', { concurrency: false }, async () =
     assert.equal(result, null);
   });
 });
+
+test('a backgrounded command\'s output is read only for a task the session launched', { concurrency: false }, async () => {
+  // The path is built from the session and the task id; a task id the
+  // transcript never recorded must not reach the filesystem at all.
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'claude-bash-output-'));
+  const sessionId = 'c1e01ee0-892f-4d05-905d-ef662ae322d1';
+
+  try {
+    const projectDir = path.join(tempRoot, 'projects', 'C--repo');
+    await mkdir(projectDir, { recursive: true });
+    const jsonlPath = path.join(projectDir, `${sessionId}.jsonl`);
+    const launch = {
+      type: 'user',
+      uuid: 'u1',
+      sessionId,
+      timestamp: '2026-10-16T10:00:00.000Z',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'Command running in background with ID: b5d5hh5z7' }] },
+      toolUseResult: { stdout: '', stderr: '', backgroundTaskId: 'b5d5hh5z7' },
+    };
+    await writeFile(jsonlPath, `${JSON.stringify(launch)}\n`, 'utf8');
+
+    const taskOutputRoot = path.join(tempRoot, 'tmp-claude');
+    const tasksDir = path.join(taskOutputRoot, 'C--repo', sessionId, 'tasks');
+    await mkdir(tasksDir, { recursive: true });
+    await writeFile(path.join(tasksDir, 'b5d5hh5z7.output'), 'line 1\nline 2\n', 'utf8');
+    await writeFile(path.join(tasksDir, 'zzzzzzzz.output'), 'not this session\'s\n', 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      const now = new Date().toISOString();
+      sessionsDb.createSession(sessionId, 'claude', tempRoot, 'Bash session', now, now, jsonlPath);
+      const provider = new ClaudeSessionsProvider({ getLiveRunStartTime: () => null, taskOutputRoot });
+
+      const output = await provider.readBackgroundCommandOutput(sessionId, 'b5d5hh5z7');
+      assert.deepEqual(output, { taskId: 'b5d5hh5z7', output: 'line 1\nline 2\n', size: 14, truncated: false });
+
+      assert.equal(await provider.readBackgroundCommandOutput(sessionId, 'zzzzzzzz'), null);
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('a background agent\'s timeline is read from its own transcript', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'claude-subagent-activity-'));
+  const sessionId = 'd2f0a1b2-0000-4000-8000-000000000001';
+  const agentId = 'a0123456789abcdef';
+
+  try {
+    const jsonlPath = path.join(tempRoot, `${sessionId}.jsonl`);
+    await writeFile(jsonlPath, '', 'utf8');
+    const agentDir = path.join(tempRoot, sessionId, 'subagents');
+    await mkdir(agentDir, { recursive: true });
+    const rows = [
+      { isSidechain: true, agentId, type: 'user', uuid: 'a-u1', timestamp: '2026-10-16T10:00:00.000Z', message: { role: 'user', content: 'Survey the repo.' } },
+      { isSidechain: true, agentId, type: 'assistant', uuid: 'a-a1', timestamp: '2026-10-16T10:00:05.000Z', message: { role: 'assistant', model: 'claude-opus-4-1', content: [{ type: 'text', text: 'Looking around.' }] } },
+    ];
+    await writeFile(path.join(agentDir, `agent-${agentId}.jsonl`), `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
+    await writeFile(path.join(agentDir, `agent-${agentId}.meta.json`), JSON.stringify({ agentType: 'Explore', description: 'Survey the repo' }), 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      const now = new Date().toISOString();
+      sessionsDb.createSession(sessionId, 'claude', tempRoot, 'Agent session', now, now, jsonlPath);
+
+      const live = await new ClaudeSessionsProvider({ getLiveRunStartTime: () => Date.parse('2026-10-16T09:59:00.000Z') })
+        .readSubagentActivity(sessionId, agentId);
+      assert.deepEqual(live?.agent, { id: agentId, type: 'Explore', description: 'Survey the repo', model: 'claude-opus-4-1', status: 'running' });
+      assert.equal(live?.activity.at(-1)?.content, 'Looking around.');
+
+      const orphaned = await new ClaudeSessionsProvider({ getLiveRunStartTime: () => null })
+        .readSubagentActivity(sessionId, agentId);
+      assert.equal(orphaned?.agent.status, 'stopped');
+
+      assert.equal(await new ClaudeSessionsProvider().readSubagentActivity(sessionId, 'affffffffffffffff'), null);
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

@@ -205,6 +205,9 @@ function ChatMessagesPane({
               sendMessage={sendMessage}
               onReveal={revealMessage}
               onLoadAll={loadAllMessages}
+              createDiff={createDiff}
+              onFileOpen={onFileOpen}
+              selectedProject={selectedProject}
             />
           </div>
           <div className="pointer-events-auto">

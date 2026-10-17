@@ -84,6 +84,20 @@ const parseWorkflowAgentId = (value: unknown): string => {
   return agentId;
 };
 
+/** A backgrounded command's id as the CLI mints one, e.g. `b5d5hh5z7`; it names its output file. */
+const BACKGROUND_TASK_ID_PATTERN = /^[a-z0-9]{6,32}$/;
+
+const parseBackgroundTaskId = (value: unknown): string => {
+  const taskId = readPathParam(value, 'taskId');
+  if (!BACKGROUND_TASK_ID_PATTERN.test(taskId)) {
+    throw new AppError('Invalid background task id.', {
+      code: 'INVALID_BACKGROUND_TASK_ID',
+      statusCode: 400,
+    });
+  }
+  return taskId;
+};
+
 const readOptionalQueryString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
     return undefined;
@@ -1017,6 +1031,32 @@ router.get(
     const runId = parseWorkflowRunId(req.params.runId);
     const agentId = parseWorkflowAgentId(req.params.agentId);
     const result = await sessionsService.readWorkflowAgentActivity(sessionId, runId, agentId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * One background agent's timeline as it stands now, for the task details
+ * window, which re-reads it while the agent runs.
+ */
+router.get(
+  '/sessions/:sessionId/agents/:agentId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    // A background agent's id has the same shape as a workflow agent's.
+    const agentId = parseWorkflowAgentId(req.params.agentId);
+    const result = await sessionsService.readSubagentActivity(sessionId, agentId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/** The tail of a backgrounded command's output, for the task details window. */
+router.get(
+  '/sessions/:sessionId/tasks/:taskId/output',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const taskId = parseBackgroundTaskId(req.params.taskId);
+    const result = await sessionsService.readBackgroundCommandOutput(sessionId, taskId);
     res.json(createApiSuccessResponse(result));
   }),
 );

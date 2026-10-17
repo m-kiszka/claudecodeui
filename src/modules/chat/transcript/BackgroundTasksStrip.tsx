@@ -1,9 +1,11 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { X } from 'lucide-react';
+import { Info, X } from 'lucide-react';
 
-import type { BackgroundTaskSummary, ChatMessage } from '@/shared/types';
+import type { BackgroundTaskSummary, ChatMessage, DiffLine, Project } from '@/shared/types';
+import { BackgroundTaskDialog } from '@/modules/chat/transcript/BackgroundTaskDialog';
+import type { BackgroundTaskSelection } from '@/modules/chat/transcript/BackgroundTaskDialog';
 import {
   describeWorkflowAgent,
   findCurrentWorkflowAgent,
@@ -37,7 +39,29 @@ type BackgroundTasksStripProps = {
   onReveal: (message: ChatMessage) => void;
   /** Loads the rest of the transcript, for a task whose launch row is not loaded yet. */
   onLoadAll: () => void;
+  /** For the timelines the details window draws. */
+  createDiff?: (oldStr: string, newStr: string) => DiffLine[];
+  onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
+  selectedProject?: Project | null;
 };
+
+/** Which task the details window is open on: a launch row by its tool call, or a map task by its id. */
+type OpenTaskKey = { kind: 'row'; toolId: string } | { kind: 'summary'; taskId: string };
+
+/** Opens the details window for one chip. */
+function DetailsButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+    >
+      <Info className="h-3 w-3" />
+    </button>
+  );
+}
 
 /** The one-line description the launch was given, as the card reads it. */
 function readLaunchDescription(message: ChatMessage): string {
@@ -101,8 +125,11 @@ function describeTask(message: ChatMessage, t: TFunction) {
  * scrolling to its card when clicked and stoppable from its ✕. Renders
  * nothing while nothing runs, which is most of the time.
  */
-export const BackgroundTasksStrip = memo(({ messages, tasks, sessionId, sendMessage, onReveal, onLoadAll }: BackgroundTasksStripProps) => {
+export const BackgroundTasksStrip = memo(({ messages, tasks, sessionId, sendMessage, onReveal, onLoadAll, createDiff, onFileOpen, selectedProject }: BackgroundTasksStripProps) => {
   const { t } = useTranslation();
+  // Held by key and resolved each render, so the window follows the task's
+  // live word and stays open on its outcome after its chip is gone.
+  const [openTask, setOpenTask] = useState<OpenTaskKey | null>(null);
   const running = listRunningBackgroundLaunches(messages);
   // A loaded row that has a word on its task — settled or not — is the word;
   // a task whose row is not loaded, or is loaded without one (a backgrounded
@@ -113,11 +140,37 @@ export const BackgroundTasksStrip = memo(({ messages, tasks, sessionId, sendMess
   );
   const fromMap = ownBackgroundTasks(tasks ?? []).filter((task) => !settledToolIds.has(task.toolUseId));
 
+  let selection: BackgroundTaskSelection | null = null;
+  if (openTask?.kind === 'row') {
+    const message = messages.find((row) => row.toolId === openTask.toolId);
+    selection = message ? { kind: 'row', message } : null;
+  } else if (openTask?.kind === 'summary') {
+    // Once its launch row loads, the row is the better source.
+    const task = (tasks ?? []).find((entry) => entry.taskId === openTask.taskId);
+    const message = task ? messages.find((row) => row.toolId === task.toolUseId) : undefined;
+    selection = message ? { kind: 'row', message } : task ? { kind: 'summary', task } : null;
+  }
+  const detailsLabel = t('workflow.taskDetails', 'Details');
+  const dialog = (
+    <BackgroundTaskDialog
+      selection={selection}
+      onClose={() => setOpenTask(null)}
+      sessionId={sessionId}
+      sendMessage={sendMessage}
+      onReveal={onReveal}
+      onLoadAll={onLoadAll}
+      createDiff={createDiff}
+      onFileOpen={onFileOpen}
+      selectedProject={selectedProject}
+    />
+  );
+
   if (running.length === 0 && fromMap.length === 0) {
-    return null;
+    return selection ? dialog : null;
   }
 
   return (
+    <>
     <div
       role="status"
       aria-label={t('workflow.backgroundTasks', 'Background tasks')}
@@ -140,6 +193,7 @@ export const BackgroundTasksStrip = memo(({ messages, tasks, sessionId, sendMess
               {name && <span className="min-w-0 truncate">{name}</span>}
               {progress && <span className="min-w-0 truncate text-muted-foreground/70">· {progress}</span>}
             </button>
+            <DetailsButton onClick={() => setOpenTask({ kind: 'row', toolId: message.toolId })} label={detailsLabel} />
             {sessionId && taskId && (
               <button
                 type="button"
@@ -189,6 +243,7 @@ export const BackgroundTasksStrip = memo(({ messages, tasks, sessionId, sendMess
                 {label}
               </button>
             )}
+            <DetailsButton onClick={() => setOpenTask({ kind: 'summary', taskId: task.taskId })} label={detailsLabel} />
             {sessionId && (
               <button
                 type="button"
@@ -204,6 +259,8 @@ export const BackgroundTasksStrip = memo(({ messages, tasks, sessionId, sendMess
         );
       })}
     </div>
+    {dialog}
+    </>
   );
 });
 BackgroundTasksStrip.displayName = 'BackgroundTasksStrip';

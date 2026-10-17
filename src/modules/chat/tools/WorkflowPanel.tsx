@@ -39,6 +39,8 @@ type WorkflowPanelProps = {
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   selectedProject?: Project | null;
+  /** Start expanded, as the task details window shows it. */
+  defaultOpen?: boolean;
 };
 
 /** What the agent-activity route answers with. */
@@ -376,11 +378,11 @@ WorkflowAgentRowView.displayName = 'WorkflowAgentRowView';
  * Shaped like SubagentPanel: the launch is a summary of work, and the
  * detail is only wanted on demand, so the body stays unmounted until opened.
  */
-export const WorkflowPanel = memo(({ toolInput, toolResult, workflow, taskStatus, onFileOpen, createDiff, selectedProject }: WorkflowPanelProps) => {
+export const WorkflowPanel = memo(({ toolInput, toolResult, workflow, taskStatus, onFileOpen, createDiff, selectedProject, defaultOpen = false }: WorkflowPanelProps) => {
   const { t } = useTranslation();
   const isExporting = useIsExportingTranscript();
   // Collapsed by default, like an agent card; the header carries the status.
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const showBody = isOpen || isExporting;
 
   const parsedInput = useMemo(() => parseToolInput(toolInput), [toolInput]);

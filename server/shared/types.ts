@@ -493,6 +493,29 @@ export type WorkflowAgentProgress = {
  * `activityCount` is the full length of the timeline; `activity` is capped
  * for transport like a subagent's `subagentTools`.
  */
+/** What one background agent of a session has done so far, read from its own transcript for the task details window. */
+export type SubagentActivitySnapshot = {
+  agent: {
+    id: string;
+    type?: string;
+    description?: string;
+    model?: string;
+    status: 'running' | 'completed' | 'failed' | 'stopped';
+  };
+  activity: SubagentActivity[];
+  activityCount: number;
+};
+
+/** The tail of a backgrounded command's output file, for the task details window. */
+export type BackgroundCommandOutput = {
+  taskId: string;
+  /** The last bytes of the file, decoded as UTF-8; a partial first line is dropped when the file was cut. */
+  output: string;
+  /** Size of the whole file in bytes. */
+  size: number;
+  truncated: boolean;
+};
+
 export type WorkflowAgentActivity = {
   agent: {
     id: string;

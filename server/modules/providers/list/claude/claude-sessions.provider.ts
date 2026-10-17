@@ -1,16 +1,19 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
+  BackgroundCommandOutput,
   CompactionInfo,
   FetchHistoryOptions,
   FetchHistoryResult,
   NormalizedMessage,
   SubagentActivity,
+  SubagentActivitySnapshot,
   SubagentInfo,
   TaskUsage,
   WorkflowAgentActivity,
@@ -61,6 +64,8 @@ const formatDuration = (milliseconds: number): string => {
  * kept: a running agent's timeline is polled for what it is doing now, and
  * the card says how many earlier ones were left out.
  */
+/** How much of a backgrounded command's output the details window is sent: its tail. */
+const MAX_BACKGROUND_OUTPUT_BYTES = 64 * 1024;
 const MAX_TRANSMITTED_SUBAGENT_ACTIVITIES = 200;
 
 type ClaudeToolResult = {
@@ -1272,13 +1277,20 @@ type ClaudeSessionsProviderOptions = {
    * driving a real SDK run.
    */
   getLiveRunStartTime?: LiveRunStartTimeProbe;
+  /** Where the CLI writes backgrounded commands' output; injected so tests need not touch the real temp dir. */
+  taskOutputRoot?: string;
 };
 
 export class ClaudeSessionsProvider implements IProviderSessions {
   private readonly getLiveRunStartTime: LiveRunStartTimeProbe;
+  private readonly taskOutputRoot: string;
 
-  constructor({ getLiveRunStartTime = getClaudeSDKSessionStartTime }: ClaudeSessionsProviderOptions = {}) {
+  constructor({
+    getLiveRunStartTime = getClaudeSDKSessionStartTime,
+    taskOutputRoot = path.join(os.tmpdir(), 'claude'),
+  }: ClaudeSessionsProviderOptions = {}) {
     this.getLiveRunStartTime = getLiveRunStartTime;
+    this.taskOutputRoot = taskOutputRoot;
   }
 
   /**
@@ -1833,6 +1845,116 @@ export class ClaudeSessionsProvider implements IProviderSessions {
         .map(truncateSubagentActivity),
       activityCount: transcript.activity.length,
     };
+  }
+
+  /**
+   * Reads one background agent's timeline from its own transcript, for the
+   * task details window. History carries it too, but only as of the last
+   * load; a running agent's rows reach nothing else.
+   *
+   * The agent may have been launched before a context clear, so every part
+   * of the session is searched, newest first. Its status follows the rule
+   * history applies to a launch with no notification: running while the
+   * process that spawned it is, stopped after. The caller's own word — a
+   * notification it has seen — settles it otherwise.
+   */
+  async readSubagentActivity(sessionId: string, agentId: string): Promise<SubagentActivitySnapshot | null> {
+    const parts = this.listTranscriptParts(sessionId);
+    for (const part of parts.reverse()) {
+      const located = await findClaudeSubagentTranscript(path.dirname(part.jsonlPath), part.providerSessionId, agentId);
+      if (!located) {
+        continue;
+      }
+
+      const [transcript, meta] = await Promise.all([
+        readClaudeSubagentTranscript(located.transcriptPath),
+        readClaudeSubagentMeta(located.metaPath),
+      ]);
+      const liveRunStartedAt = this.getLiveRunStartTime(sessionId) ?? this.getLiveRunStartTime(part.providerSessionId);
+      const status = liveRunStartedAt !== null && Date.parse(transcript.startedAt ?? '') >= liveRunStartedAt
+        ? 'running'
+        : 'stopped';
+
+      return {
+        agent: {
+          id: agentId,
+          type: meta.agentType,
+          description: meta.description,
+          model: transcript.model,
+          status,
+        },
+        activity: transcript.activity
+          .slice(-MAX_TRANSMITTED_SUBAGENT_ACTIVITIES)
+          .map(truncateSubagentActivity),
+        activityCount: transcript.activity.length,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Reads the tail of a backgrounded command's output.
+   *
+   * The CLI writes it to
+   * `<tmp>/claude/<projectDirName>/<providerSessionId>/tasks/<taskId>.output`.
+   * The path is built here from the session alone — never taken from a
+   * caller — and only for a task id that one of the session's transcript
+   * parts records as a `backgroundTaskId`, so no other file can be read.
+   */
+  async readBackgroundCommandOutput(sessionId: string, taskId: string): Promise<BackgroundCommandOutput | null> {
+    const parts = this.listTranscriptParts(sessionId);
+    for (const part of parts.reverse()) {
+      let transcript: string;
+      try {
+        transcript = await fsp.readFile(part.jsonlPath, 'utf8');
+      } catch {
+        continue;
+      }
+      if (!transcript.includes(`"backgroundTaskId":"${taskId}"`)) {
+        continue;
+      }
+
+      const outputPath = path.join(
+        this.taskOutputRoot,
+        path.basename(path.dirname(part.jsonlPath)),
+        part.providerSessionId,
+        'tasks',
+        `${taskId}.output`,
+      );
+      let handle: fsp.FileHandle;
+      try {
+        handle = await fsp.open(outputPath, 'r');
+      } catch {
+        // Launched, but nothing written yet — or the temp dir was cleaned.
+        return { taskId, output: '', size: 0, truncated: false };
+      }
+      try {
+        const { size } = await handle.stat();
+        const length = Math.min(size, MAX_BACKGROUND_OUTPUT_BYTES);
+        const buffer = Buffer.alloc(length);
+        await handle.read(buffer, 0, length, size - length);
+        let output = buffer.toString('utf8');
+        const truncated = size > length;
+        if (truncated) {
+          // The cut lands mid-line, and possibly mid-character.
+          output = output.slice(output.indexOf('\n') + 1);
+        }
+        return { taskId, output, size, truncated };
+      } finally {
+        await handle.close();
+      }
+    }
+    return null;
+  }
+
+  /** The session's transcript parts in order, earlier (cleared) ones first. */
+  private listTranscriptParts(sessionId: string): Array<{ providerSessionId: string; jsonlPath: string }> {
+    const session = sessionsDb.getSessionById(sessionId);
+    const parts = sessionsDb.getSupersededTranscripts(sessionId, PROVIDER);
+    if (session?.jsonl_path && session.provider_session_id) {
+      parts.push({ providerSessionId: session.provider_session_id, jsonlPath: session.jsonl_path });
+    }
+    return parts;
   }
 
   /**

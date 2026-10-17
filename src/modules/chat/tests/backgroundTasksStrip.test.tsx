@@ -8,6 +8,9 @@ import { visibleCountToReveal } from '@/modules/chat/hooks/useChatSessionState';
 import { SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat/utils/sessionMessagePagination';
 import type { ChatMessage } from '@/shared/types';
 
+/** The strip's buttons minus each chip's details icon, which the details tests address by name. */
+const chipButtons = () => screen.getAllByRole('button').filter((button) => button.getAttribute('aria-label') !== 'Details');
+
 const toolRow = (overrides: Partial<ChatMessage>): ChatMessage => ({
   type: 'assistant',
   content: '',
@@ -47,7 +50,7 @@ describe('the background tasks strip', () => {
       />,
     );
 
-    const chips = screen.getAllByRole('button');
+    const chips = chipButtons();
     expect(chips.map((chip) => chip.textContent)).toEqual([
       'Workflowfrontend-architecture-audit· Verify 3/6',
       'AgentSurvey the repo· 12 tools',
@@ -83,7 +86,7 @@ describe('the background tasks strip', () => {
       />,
     );
 
-    expect(screen.getByRole('button').textContent).toBe('Workflowfrontend-architecture-audit· 2/4 agents · audit:sidebar');
+    expect(chipButtons()[0].textContent).toBe('Workflowfrontend-architecture-audit· 2/4 agents · audit:sidebar');
   });
 
   it('renders nothing when no task is running', () => {
@@ -135,7 +138,7 @@ describe('the background tasks strip', () => {
       />,
     );
 
-    expect(screen.getByRole('button').textContent).toBe('Workflowfrontend-architecture-audit· 1/2');
+    expect(chipButtons()[0].textContent).toBe('Workflowfrontend-architecture-audit· 1/2');
   });
 
   it('asks the pane to reveal the task\'s row when its chip is clicked', () => {
@@ -151,7 +154,7 @@ describe('the background tasks strip', () => {
 
     render(<BackgroundTasksStrip sessionId="session-1" sendMessage={() => {}} onReveal={onReveal} onLoadAll={() => {}} messages={[row]} />);
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(chipButtons()[0]);
     expect(onReveal).toHaveBeenCalledWith(row);
   });
 
@@ -174,7 +177,7 @@ describe('the background tasks strip', () => {
       />,
     );
 
-    const chip = screen.getByRole('button');
+    const chip = chipButtons()[0];
     const progress = chip.lastElementChild as HTMLElement;
     expect(progress.textContent).toBe(`· ${summary}`);
     expect(progress.className).toContain('truncate');
@@ -211,7 +214,7 @@ describe('the background tasks strip', () => {
       />,
     );
 
-    expect(screen.getAllByRole('button').map((chip) => chip.textContent)).toEqual([
+    expect(chipButtons().map((chip) => chip.textContent)).toEqual([
       'Workflowaudit',
       'AgentSurvey the repo',
     ]);
@@ -237,7 +240,7 @@ describe('the background tasks strip', () => {
       />,
     );
 
-    expect(screen.getByRole('button').textContent).toBe('Workflowaudit');
+    expect(chipButtons()[0].textContent).toBe('Workflowaudit');
   });
 
   it('stops a task over the websocket from its chip, by the id its events or acknowledgement named', () => {
@@ -316,7 +319,7 @@ describe('the background tasks strip, for a task whose launch row is not loaded'
       />,
     );
 
-    const chips = screen.getAllByRole('button');
+    const chips = chipButtons();
     expect(chips.map((chip) => chip.textContent)).toEqual(['Workflowaudit', '']);
     expect(chips[0]?.title).toBe('Workflow · audit · Launched earlier in this conversation; click to load it');
     fireEvent.click(chips[0]!);
@@ -369,7 +372,7 @@ describe('the background tasks strip, for tasks only the activity map has a word
       />,
     );
 
-    expect(screen.getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Commandnpm test', '']);
+    expect(chipButtons().map((chip) => chip.textContent)).toEqual(['Commandnpm test', '']);
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(sendMessage).toHaveBeenCalledWith({ type: 'chat.stop-task', sessionId: 'session-1', taskId: 'b5xsbzu5k' });
   });
@@ -392,7 +395,7 @@ describe('the background tasks strip, for tasks only the activity map has a word
     );
 
     // The chip is a plain label with the Stop beside it: nothing to click into.
-    expect(screen.getAllByRole('button').map((chip) => chip.getAttribute('aria-label'))).toEqual(['Stop']);
+    expect(chipButtons().map((chip) => chip.getAttribute('aria-label'))).toEqual(['Stop']);
     const chip = screen.getByTitle(/Launched by one of this session's agents/);
     expect(chip.textContent).toBe('CommandSleep for 60 seconds');
     fireEvent.click(chip);
@@ -414,7 +417,7 @@ describe('the background tasks strip, for tasks only the activity map has a word
       />,
     );
 
-    expect(screen.getByRole('button').textContent).toBe('Workflowaudit· 0/1 agent · only');
+    expect(chipButtons()[0].textContent).toBe('Workflowaudit· 0/1 agent · only');
   });
 });
 

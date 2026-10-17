@@ -15,6 +15,8 @@ import type {
   LLMProvider,
   NormalizedMessage,
   WorkflowAgentActivity,
+  SubagentActivitySnapshot,
+  BackgroundCommandOutput,
 } from '@/shared/types.js';
 import { AppError, sliceTailPage } from '@/shared/utils.js';
 
@@ -148,6 +150,18 @@ function resolveProjectDisplayName(
  * class, keeping normalization/history call sites decoupled from implementation
  * file layout.
  */
+/** The sessions half of the provider that owns a session; 404 for an unknown session. */
+function resolveSessionProvider(sessionId: string) {
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session) {
+    throw new AppError(`Session "${sessionId}" was not found.`, {
+      code: 'SESSION_NOT_FOUND',
+      statusCode: 404,
+    });
+  }
+  return providerRegistry.resolveProvider(session.provider as LLMProvider).sessions;
+}
+
 export const sessionsService = {
   /**
    * Lists provider ids that can load session history and normalize live messages.
@@ -666,6 +680,37 @@ export const sessionsService = {
     }
 
     return activity;
+  },
+
+  /**
+   * Reads what one background agent of the session has done so far, for the
+   * task details window. Not found covers a provider without background
+   * agents and an agent that left no transcript.
+   */
+  async readSubagentActivity(sessionId: string, agentId: string): Promise<SubagentActivitySnapshot> {
+    const activity = await resolveSessionProvider(sessionId).readSubagentActivity?.(sessionId, agentId);
+    if (!activity) {
+      throw new AppError(`Agent "${agentId}" was not found.`, {
+        code: 'SUBAGENT_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    return activity;
+  },
+
+  /**
+   * Reads the tail of a backgrounded command's output, for the task details
+   * window. Not found covers a task id this session never launched.
+   */
+  async readBackgroundCommandOutput(sessionId: string, taskId: string): Promise<BackgroundCommandOutput> {
+    const output = await resolveSessionProvider(sessionId).readBackgroundCommandOutput?.(sessionId, taskId);
+    if (!output) {
+      throw new AppError(`Background command "${taskId}" was not found.`, {
+        code: 'BACKGROUND_TASK_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    return output;
   },
 
   /**

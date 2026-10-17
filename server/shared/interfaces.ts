@@ -19,6 +19,8 @@ import type {
   ProviderRuntimeWriter,
   UpsertProviderMcpServerInput,
   WorkflowAgentActivity,
+  SubagentActivitySnapshot,
+  BackgroundCommandOutput,
 } from '@/shared/types.js';
 
 //----------------- PROVIDER CONTRACT INTERFACES ------------
@@ -245,6 +247,19 @@ export interface IProviderSessions {
     runId: string,
     agentId: string,
   ): Promise<WorkflowAgentActivity | null>;
+
+  /**
+   * Reads what one background agent of the session did, from its own
+   * transcript. Returns `null` when the session left no transcript for it.
+   */
+  readSubagentActivity?(sessionId: string, agentId: string): Promise<SubagentActivitySnapshot | null>;
+
+  /**
+   * Reads the tail of a backgrounded command's output file. The file is
+   * located from the session and the task id alone, and only for a task the
+   * session's transcript launched; `null` otherwise.
+   */
+  readBackgroundCommandOutput?(sessionId: string, taskId: string): Promise<BackgroundCommandOutput | null>;
 }
 
 // ---------------------------

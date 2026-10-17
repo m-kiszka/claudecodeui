@@ -392,7 +392,25 @@
     "backgroundCommand": "Command",
     "stopTask": "Stop",
     "taskRowNotLoaded": "Launched earlier in this conversation; click to load it",
-    "taskOfAgent": "Launched by one of this session's agents"
+    "taskOfAgent": "Launched by one of this session's agents",
+    "taskDetails": "Details",
+    "closeTaskDetails": "Close",
+    "goToCard": "Go to card",
+    "loadConversation": "Load conversation",
+    "taskStatus": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "stopped": "Stopped"
+    },
+    "taskTokens": "{{count}} tokens",
+    "taskToolUses_one": "{{count}} tool use",
+    "taskToolUses_other": "{{count}} tool uses",
+    "taskOutputLoading": "Reading the output…",
+    "taskOutputUnavailable": "Output unavailable: {{reason}}",
+    "taskOutputTruncated": "Showing the end of {{size}} KB of output",
+    "taskOutputEmpty": "No output yet",
+    "taskNotNamed": "the task has no id yet"
   },
   "cancel": "Cancel"
 }

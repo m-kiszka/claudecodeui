@@ -14,7 +14,7 @@ import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
-import type { QueuedDraft, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption } from '@/shared/types';
+import type { BackgroundSendChoice, BackgroundSendPrompt, QueuedDraft, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption } from '@/shared/types';
 import {
   PromptInput,
   PromptInputHeader,
@@ -35,6 +35,7 @@ import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
 import PermissionRequestsBanner from '@/modules/chat/composer/PermissionRequestsBanner';
 import TokenUsageSummary from '@/modules/chat/composer/TokenUsageSummary';
 import QueuedMessageCard from '@/modules/chat/composer/QueuedMessageCard';
+import BackgroundSendDialog from '@/modules/chat/composer/BackgroundSendDialog';
 import { ScheduleMessagePopover } from '@/modules/chat/composer/ScheduleMessagePopover';
 import { ScheduledMessageList } from '@/modules/chat/composer/ScheduledMessageList';
 import ComposerModelMenu from '@/modules/chat/composer/ComposerModelMenu';
@@ -81,6 +82,8 @@ type ChatComposerProps = {
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
   isDragActive: boolean;
   queuedDraft: QueuedDraft | null;
+  backgroundSendPrompt: BackgroundSendPrompt | null;
+  onResolveBackgroundSendPrompt: (choice: BackgroundSendChoice) => void;
   /** Set while the composer is replacing an already-sent message. */
   isEditingSentMessage: boolean;
   onCancelEditMessage: () => void;
@@ -160,6 +163,8 @@ export default function ChatComposer({
   onSubmit,
   isDragActive,
   queuedDraft,
+  backgroundSendPrompt,
+  onResolveBackgroundSendPrompt,
   isEditingSentMessage,
   onCancelEditMessage,
   scheduledMessages,
@@ -325,6 +330,11 @@ export default function ChatComposer({
           </button>
         </div>
       )}
+
+      <BackgroundSendDialog
+        prompt={backgroundSendPrompt}
+        onResolve={onResolveBackgroundSendPrompt}
+      />
 
       {queuedDraft && (
         <QueuedMessageCard

@@ -159,6 +159,7 @@
       "update": "Update queued message",
       "label": "Queued",
       "willSend": "Will send when this finishes",
+      "willSendAfterInterrupt": "Will send once the current response is interrupted",
       "edit": "Edit queued message",
       "delete": "Delete queued message"
     }

@@ -579,6 +579,7 @@ function ChatInterface({
           userPrompts={userPrompts}
           onJumpToPrompt={handleJumpToPrompt}
           handoffPhase={canHandoffAndClear ? handoff.phase : null}
+          queueInterrupts={queueInterrupts}
           onHandoffAndClear={handoff.start}
           permissionMode={permissionMode}
           availablePermissionModes={availablePermissionModes}

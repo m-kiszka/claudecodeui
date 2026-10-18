@@ -61,6 +61,8 @@ type ChatComposerProps = {
   onJumpToPrompt: (prompt: CurrentPrompt) => void;
   /** Null hides the hand-off-and-clear button (setting off or not a Claude session). */
   handoffPhase: HandoffPhase | null;
+  /** Queuing a message stops the running turn (Settings → Chat), so the queued card says so. */
+  queueInterrupts?: boolean;
   onHandoffAndClear: () => void;
   permissionMode: PermissionMode;
   availablePermissionModes: PermissionMode[];
@@ -142,6 +144,7 @@ export default function ChatComposer({
   userPrompts,
   onJumpToPrompt,
   handoffPhase,
+  queueInterrupts = false,
   onHandoffAndClear,
   permissionMode,
   availablePermissionModes,
@@ -346,6 +349,9 @@ export default function ChatComposer({
           onDelete={onDeleteQueuedDraft}
           // Stopping ends the run, and the server sends the queued turn as soon as a run ends.
           onSendNow={isLoading && activity?.canInterrupt ? onAbortSession : undefined}
+          // With interrupts on, queuing behind a responding turn stopped it;
+          // queuing behind background work does not.
+          interrupting={queueInterrupts && isLoading && !activity?.background}
         />
       )}
 

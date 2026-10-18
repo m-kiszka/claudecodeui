@@ -100,6 +100,12 @@ type SubmitOptions = {
    * run that command instead of being sent.
    */
   skipCommandInterception?: boolean;
+  /**
+   * The app composed this message (the handoff steps), not the user. It never
+   * interrupts the running turn when it has to queue, and it does not ask
+   * before sending over background work: nobody is at the composer to answer.
+   */
+  appPrompt?: boolean;
 };
 
 const createFakeSubmitEvent = () => {
@@ -429,7 +435,7 @@ export function useChatComposerState({
     setCommandModalPayload(null);
   }, []);
 
-  const handleCustomCommand = useCallback(async (result: CommandExecutionResult) => {
+  const handleCustomCommand = useCallback(async (result: CommandExecutionResult, appPrompt = false) => {
     const { content, hasBashCommands } = result;
 
     if (hasBashCommands) {
@@ -446,21 +452,21 @@ export function useChatComposerState({
       }
     }
 
-    const commandContent = content || '';
-    setInput(commandContent);
-    inputValueRef.current = commandContent;
+    // Only the ref the send reads gets the expanded body. Putting it into the
+    // input state too would save it as the draft, and the draft sync could
+    // bring it back into the field after the send cleared it.
+    inputValueRef.current = content || '';
 
-    // Defer submit to next tick so the command text is reflected in UI before dispatching.
     // The expanded body is the message itself: it skips slash-command interception.
     setTimeout(() => {
       if (handleSubmitRef.current) {
-        handleSubmitRef.current(createFakeSubmitEvent(), undefined, { skipCommandInterception: true });
+        handleSubmitRef.current(createFakeSubmitEvent(), undefined, { skipCommandInterception: true, appPrompt });
       }
     }, 0);
   }, [addMessage]);
 
   const executeCommand = useCallback(
-    async (command: SlashCommand, rawInput?: string, options?: { preserveInput?: boolean }) => {
+    async (command: SlashCommand, rawInput?: string, options?: { preserveInput?: boolean; appPrompt?: boolean }) => {
       if (!command || !selectedProject) {
         return;
       }
@@ -517,7 +523,7 @@ export function useChatComposerState({
             inputValueRef.current = '';
           }
         } else if (result.type === 'custom') {
-          await handleCustomCommand(result);
+          await handleCustomCommand(result, options?.appPrompt);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -850,7 +856,7 @@ export function useChatComposerState({
           options: queuedOptions,
         }, queuedSessionKey);
         // The server sends the queued turn as soon as the stopped run ends.
-        if (queueInterruptsRef.current) {
+        if (queueInterruptsRef.current && !submitOptions?.appPrompt) {
           handleAbortSessionRef.current?.();
         }
         return;
@@ -878,7 +884,7 @@ export function useChatComposerState({
               } as SlashCommand)
             : undefined);
         if (matchedCommand && matchedCommand.type !== 'skill') {
-          executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
+          executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput, { appPrompt: submitOptions?.appPrompt });
           recordSentMessage(currentInput);
           setInput('');
           inputValueRef.current = '';
@@ -973,7 +979,7 @@ export function useChatComposerState({
       // call, but not one to make for them — and queueing behind the work,
       // which the server holds until it finishes, is the safe alternative.
       const backgroundActivity = processingSessionsRef.current?.get(targetSessionId);
-      if (backgroundActivity?.background) {
+      if (backgroundActivity?.background && !submitOptions?.appPrompt) {
         const work = ownBackgroundTasks(backgroundActivity.tasks ?? [])
           .map((task) => describeBackgroundTask(task, t));
         const choice = await askBeforeSendingOverBackgroundWork(work);
@@ -1172,7 +1178,7 @@ export function useChatComposerState({
   // sync could bring it back into the field after the send cleared it.
   const sendPrompt = useCallback((text: string) => {
     inputValueRef.current = text;
-    handleSubmitRef.current?.(createFakeSubmitEvent());
+    handleSubmitRef.current?.(createFakeSubmitEvent(), undefined, { appPrompt: true });
   }, []);
 
   useEffect(() => {

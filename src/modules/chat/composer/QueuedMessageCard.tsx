@@ -8,6 +8,8 @@ type QueuedMessageCardProps = {
   onDelete: () => void;
   /** Stops the running turn so the queued message goes out now; absent when the turn cannot be stopped. */
   onSendNow?: () => void;
+  /** Queuing stopped the running turn, so the message goes out as soon as it has stopped, not when it finishes. */
+  interrupting?: boolean;
 };
 
 /**
@@ -21,6 +23,7 @@ export default function QueuedMessageCard({
   onEdit,
   onDelete,
   onSendNow,
+  interrupting = false,
 }: QueuedMessageCardProps) {
   const { t } = useTranslation('chat');
 
@@ -33,7 +36,9 @@ export default function QueuedMessageCard({
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-primary/70">
             <span>{t('input.queue.label', { defaultValue: 'Queued' })}</span>
             <span className="normal-case text-muted-foreground/60">
-              · {t('input.queue.willSend', { defaultValue: 'Will send when this finishes' })}
+              · {interrupting
+                ? t('input.queue.willSendAfterInterrupt', { defaultValue: 'Will send once the current response is interrupted' })
+                : t('input.queue.willSend', { defaultValue: 'Will send when this finishes' })}
             </span>
           </div>
           <p className="mt-0.5 line-clamp-2 break-words text-sm text-foreground/90">{content}</p>

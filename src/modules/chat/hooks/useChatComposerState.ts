@@ -1138,14 +1138,25 @@ export function useChatComposerState({
       if (!cancelled && !readQueuedMessage(sessionKey)) {
         queuedDraftSessionRef.current = sessionKey;
         setQueuedDraft(null);
+        // The server claimed it and is sending it. Its run streams no echo
+        // of the prompt, so show it now, as a send from here would, instead
+        // of leaving it nowhere until the history catches up.
+        const attachments = (queuedDraft.uploadedAttachments ?? []) as ChatAttachment[];
+        addMessage({
+          type: 'user',
+          content: queuedDraft.content,
+          images: attachments.filter(isImageAttachment),
+          files: attachments.filter((attachment) => !isImageAttachment(attachment)),
+          timestamp: new Date(),
+        });
       }
     };
-    const timer = setInterval(() => void reconcile(), 5_000);
+    const timer = setInterval(() => void reconcile(), 1_500);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [queuedDraft, sessionKey]);
+  }, [addMessage, queuedDraft, sessionKey]);
 
   const editQueuedDraft = useCallback(() => {
     if (!queuedDraft) {

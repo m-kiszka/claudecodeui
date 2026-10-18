@@ -12,7 +12,16 @@ import type { ProviderRuntimeGateway } from '@/modules/websocket/index.js';
  */
 const POLL_INTERVAL_MS = 30_000;
 
+/**
+ * How often a waiting queued turn is retried. A run's end triggers a pass
+ * at once, but a turn that found the session still holding background work
+ * (or a stopped run's process not yet released) has no event to wait for:
+ * the work ends quietly. Checked only while a queued turn exists.
+ */
+const QUEUED_POLL_INTERVAL_MS = 2_000;
+
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let queuedPollTimer: ReturnType<typeof setInterval> | null = null;
 let dispatchInFlight = false;
 /** Set when a run ends during a pass, so that pass is followed by another one. */
 let dispatchRequestedDuringPass = false;
@@ -212,6 +221,13 @@ export function initializeScheduledMessageDispatcher(runtime: ProviderRuntimeGat
   // Never keep the process alive just to poll for scheduled messages.
   pollTimer.unref?.();
 
+  queuedPollTimer = setInterval(() => {
+    if (sessionDraftsDb.listQueuedMessages().length > 0) {
+      poll();
+    }
+  }, QUEUED_POLL_INTERVAL_MS);
+  queuedPollTimer.unref?.();
+
   // A queued turn goes out as soon as its session's run ends — finished or
   // stopped — rather than waiting up to a full poll interval.
   unsubscribeRunCompleted = chatRunRegistry.onRunCompleted(() => poll());
@@ -224,6 +240,10 @@ export function closeScheduledMessageDispatcher(): void {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
+  }
+  if (queuedPollTimer) {
+    clearInterval(queuedPollTimer);
+    queuedPollTimer = null;
   }
   unsubscribeRunCompleted?.();
   unsubscribeRunCompleted = null;

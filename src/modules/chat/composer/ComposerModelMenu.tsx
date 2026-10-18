@@ -75,9 +75,10 @@ function ComposerModelMenu({
   const catalogLabel = selectedModelOption?.label || model;
   const modelLabel = !selectedModelOption
     ? formatClaudeModelName(model) ?? model
-    : answered && selectedModelOption.value.toLowerCase().startsWith(answered.family)
-      // "Opus (1M context)" reads "Opus 5.5 (1M context)"; a stated version is replaced.
-      ? catalogLabel.replace(/^([A-Za-z]+)(?: \d+(?:\.\d+)?)?/, `$1 ${answered.version}`)
+    // The CLI's catalog names versions itself ("Opus 5.5"); only a label
+    // without one (the built-in fallback list) borrows the answering model's.
+    : answered && !/\d/.test(catalogLabel) && selectedModelOption.value.toLowerCase().startsWith(answered.family)
+      ? catalogLabel.replace(/^([A-Za-z]+)/, `$1 ${answered.version}`)
       : catalogLabel;
 
   const hasEffortSection = resolvedEffortOptions.length > 0;

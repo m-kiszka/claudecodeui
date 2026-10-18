@@ -1,5 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelInfo } from '@anthropic-ai/claude-agent-sdk';
+
+import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
@@ -276,20 +280,102 @@ const readClaudeSessionModelFromJsonl = async (
   return null;
 };
 
+/** How long a probed catalog is reused: the CLI's list changes with a CLI update, not per turn. */
+const SUPPORTED_MODELS_TTL_MS = 10 * 60 * 1000;
+/** A probe that has not answered by then falls back to the static catalog. */
+const SUPPORTED_MODELS_PROBE_TIMEOUT_MS = 20_000;
+
+/** The CLI's own catalog — what `/model` lists — in the app's option shape. */
+export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModelsDefinition => ({
+  OPTIONS: models.map((model) => {
+    const efforts = model.supportedEffortLevels ?? [];
+    return {
+      value: model.value,
+      label: model.displayName || model.value,
+      ...(model.description ? { description: model.description } : {}),
+      ...(efforts.length > 0
+        ? {
+            effort: {
+              default: efforts.includes('high') ? 'high' : efforts[0],
+              values: [
+                ...efforts.map((value) => ({ value })),
+                // Ultracode runs at xhigh, so only xhigh-capable models offer it.
+                ...(efforts.includes('xhigh') ? [ULTRACODE_EFFORT_OPTION] : []),
+              ],
+            },
+          }
+        : {}),
+    };
+  }),
+  DEFAULT: models.some((model) => model.value === 'default') ? 'default' : models[0]?.value ?? 'default',
+});
+
+/**
+ * Asks the installed Claude CLI which models it offers.
+ *
+ * The list arrives with the CLI's `initialize` answer, so no prompt is sent:
+ * the input stream stays open and empty until the answer is in, and
+ * `persistSession: false` keeps the CLI from writing a session for the probe
+ * (an earlier version sent a prompt and left a stray session behind).
+ */
+async function probeClaudeSupportedModels(): Promise<ModelInfo[]> {
+  let releasePrompt: () => void = () => {};
+  const held = new Promise<void>((resolve) => { releasePrompt = resolve; });
+  async function* emptyPrompt(): AsyncGenerator<never> {
+    await held;
+    // Ends without a message: the probe only needs the `initialize` answer.
+    yield* ([] as never[]);
+  }
+
+  const executable = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
+  const probe = query({
+    prompt: emptyPrompt(),
+    options: {
+      persistSession: false,
+      ...(executable ? { pathToClaudeCodeExecutable: executable } : {}),
+    },
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      probe.supportedModels(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Timed out listing Claude models')), SUPPORTED_MODELS_PROBE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    releasePrompt();
+    probe.close();
+  }
+}
+
 export class ClaudeProviderModels implements IProviderModels {
+  private cached: { definition: ProviderModelsDefinition; at: number } | null = null;
+  private inFlight: Promise<ProviderModelsDefinition> | null = null;
+
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    // claude creates a new jsonl file as a separate session for this request.
-    // As a result, it lists the workspace where this is invoked when it shouldn't.
-    //
-    // Disabled for now:
-    // const queryInstance = query({
-    //   prompt: 'Get supported models',
-    //   options: buildClaudeQueryOptions(),
-    // });
-    // const supportedModels = await queryInstance.supportedModels();
-    // queryInstance.close();
-    // return buildClaudeModelsDefinition(supportedModels);
-    return CLAUDE_PREDEFINED_MODELS;
+    if (this.cached && Date.now() - this.cached.at < SUPPORTED_MODELS_TTL_MS) {
+      return this.cached.definition;
+    }
+    // One probe at a time: the menu and the active-model lookup ask together.
+    this.inFlight ??= probeClaudeSupportedModels()
+      .then((models) => {
+        if (models.length === 0) {
+          return CLAUDE_PREDEFINED_MODELS;
+        }
+        const definition = buildClaudeModelsDefinition(models);
+        this.cached = { definition, at: Date.now() };
+        return definition;
+      })
+      .catch((error: unknown) => {
+        console.warn('[ClaudeModels] Could not list the CLI models; using the built-in list:', error instanceof Error ? error.message : error);
+        return this.cached?.definition ?? CLAUDE_PREDEFINED_MODELS;
+      })
+      .finally(() => {
+        this.inFlight = null;
+      });
+    return this.inFlight;
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {

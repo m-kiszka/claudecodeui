@@ -3,7 +3,7 @@
  * Converts NormalizedMessage[] from the session store into ChatMessage[] for the UI.
  */
 
-import type { ChatMessage, LiveTaskStatus, NormalizedMessage, SubagentActivity } from '@/shared/types';
+import type { ChatMessage, LiveTaskStatus, NormalizedMessage, RateLimitInfo, SubagentActivity } from '@/shared/types';
 import { formatUsageLimitText } from '@/modules/chat/utils/chatFormatting';
 
 function formatToolResultContent(content: unknown): string {
@@ -228,6 +228,25 @@ function foldTaskStatus(
     ...(agents ? { agents } : {}),
   });
   lastTaskSourceByToolUseId.set(toolUseId, msg);
+}
+
+/**
+ * The usage limit that refused the session's latest turn, or null when the
+ * session can send: no refusal, or one already answered by a later prompt.
+ * A prompt sent while the limit still holds is refused again and writes a
+ * new refusal, so stopping at the newest user turn is enough.
+ */
+export function readRefusingRateLimit(messages: NormalizedMessage[]): RateLimitInfo | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.rateLimit) {
+      return message.rateLimit.status === 'rejected' ? message.rateLimit : null;
+    }
+    if (message.role === 'user' && message.kind === 'text') {
+      return null;
+    }
+  }
+  return null;
 }
 
 export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMessage[] {

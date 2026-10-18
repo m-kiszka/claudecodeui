@@ -12,6 +12,7 @@ import type {
   FetchHistoryOptions,
   FetchHistoryResult,
   NormalizedMessage,
+  RateLimitInfo,
   SubagentActivity,
   SubagentActivitySnapshot,
   SubagentInfo,
@@ -1281,6 +1282,26 @@ type ClaudeSessionsProviderOptions = {
   taskOutputRoot?: string;
 };
 
+/**
+ * Reads the CLI's `rate_limit_info` (live) or `quotaLimits` (on disk). Its
+ * `resetsAt` is epoch seconds; it is returned in milliseconds.
+ */
+function readRateLimitInfo(value: unknown): RateLimitInfo | null {
+  const info = readObjectRecord(value);
+  const status = info?.status;
+  if (status !== 'allowed' && status !== 'allowed_warning' && status !== 'rejected') {
+    return null;
+  }
+  const resetsAt = typeof info?.resetsAt === 'number' && Number.isFinite(info.resetsAt)
+    ? (info.resetsAt < 1e12 ? info.resetsAt * 1000 : info.resetsAt)
+    : undefined;
+  return {
+    status,
+    ...(resetsAt ? { resetsAt } : {}),
+    ...(typeof info?.rateLimitType === 'string' ? { rateLimitType: info.rateLimitType } : {}),
+  };
+}
+
 export class ClaudeSessionsProvider implements IProviderSessions {
   private readonly getLiveRunStartTime: LiveRunStartTimeProbe;
   private readonly taskOutputRoot: string;
@@ -1323,6 +1344,19 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       }
     }
 
+    // A turn the account's usage limit refused: the CLI writes a synthetic
+    // assistant row carrying the limit's state, which says when it resets.
+    const refusedLimit = raw?.error === 'rate_limit'
+      ? readRateLimitInfo(readObjectRecord(raw.apiErrorParams)?.rate_limit_info ?? raw.quotaLimits)
+      : null;
+    if (refusedLimit) {
+      for (const message of messages) {
+        if (message.role === 'assistant') {
+          message.rateLimit = refusedLimit;
+        }
+      }
+    }
+
     return messages;
   }
 
@@ -1330,6 +1364,15 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const raw = readObjectRecord(rawMessage);
     if (!raw) {
       return [];
+    }
+
+    // The live word on a usage limit. A control event: the client keeps the
+    // latest to say when a refused session can continue.
+    if (raw.type === 'rate_limit_event') {
+      const rateLimit = readRateLimitInfo(raw.rate_limit_info);
+      return rateLimit
+        ? [createNormalizedMessage({ kind: 'status', sessionId, provider: PROVIDER, timestamp: new Date().toISOString(), rateLimit })]
+        : [];
     }
 
     if (raw.type === 'content_block_delta' && raw.delta?.text) {

@@ -212,6 +212,17 @@ export type ProviderSessionModel = {
  *
  * Keep this union in sync with event kinds produced by provider session adapters.
  */
+/**
+ * Where the account stands against a claude.ai subscription limit, as the
+ * CLI reports it: on the row it writes when a turn is refused, and on the
+ * live `rate_limit_event`. `resetsAt` is epoch milliseconds.
+ */
+export type RateLimitInfo = {
+  status: 'allowed' | 'allowed_warning' | 'rejected';
+  resetsAt?: number;
+  rateLimitType?: string;
+};
+
 export type MessageKind =
   | 'text'
   | 'tool_use'
@@ -364,6 +375,8 @@ export type NormalizedMessage = {
   compact?: CompactionInfo;
   /** Set on the marker where a session's context was cleared and a new part begins. */
   contextCleared?: boolean;
+  /** Set on a turn refused for a usage limit, and on the live event that reports one. */
+  rateLimit?: RateLimitInfo;
   images?: unknown;
   /** Non-image files attached to a user turn after provider history normalization. */
   files?: unknown;

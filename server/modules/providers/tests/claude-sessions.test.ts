@@ -2267,3 +2267,28 @@ test('a background agent\'s timeline is read from its own transcript', { concurr
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('a turn refused for a usage limit carries when the limit resets', () => {
+  const provider = new ClaudeSessionsProvider({ getLiveRunStartTime: () => null });
+
+  // The row the CLI writes on disk when a turn is refused.
+  const [refused] = provider.normalizeMessage({
+    type: 'assistant',
+    uuid: 'limit-row',
+    timestamp: '2026-10-16T12:20:14.448Z',
+    error: 'rate_limit',
+    isApiErrorMessage: true,
+    apiErrorParams: { rate_limit_info: { status: 'rejected', resetsAt: 1792167000, rateLimitType: 'five_hour' } },
+    message: { role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: 'You\'ve hit your session limit · resets 6:10pm' }] },
+  }, 'session-1');
+  assert.deepEqual(refused?.rateLimit, { status: 'rejected', resetsAt: 1792167000_000, rateLimitType: 'five_hour' });
+
+  // The live event, a control message with no text.
+  const [live] = provider.normalizeMessage({
+    type: 'rate_limit_event',
+    rate_limit_info: { status: 'allowed_warning', resetsAt: 1792167000, rateLimitType: 'seven_day', utilization: 0.9 },
+  }, 'session-1');
+  assert.equal(live?.kind, 'status');
+  assert.equal(live?.content, undefined);
+  assert.deepEqual(live?.rateLimit, { status: 'allowed_warning', resetsAt: 1792167000_000, rateLimitType: 'seven_day' });
+});

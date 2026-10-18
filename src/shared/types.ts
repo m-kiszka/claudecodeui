@@ -343,6 +343,17 @@ export type CompactionInfo = {
   error?: string | null;
 };
 
+/**
+ * Where the account stands against a claude.ai subscription limit. `resetsAt`
+ * is epoch milliseconds; `rateLimitType` is the CLI's `five_hour`,
+ * `seven_day` and so on.
+ */
+export type RateLimitInfo = {
+  status: 'allowed' | 'allowed_warning' | 'rejected';
+  resetsAt?: number;
+  rateLimitType?: string;
+};
+
 /** Where a background task — a spawned agent, a workflow run or a backgrounded command — stands: `stopped` is one whose session process ended before it reported, so no outcome exists and none is coming. */
 export type BackgroundTaskStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
@@ -566,6 +577,8 @@ export type NormalizedMessage = {
   compact?: CompactionInfo;
   /** Set by the provider on the marker where a session's context was cleared. */
   contextCleared?: boolean;
+  /** Set on a turn refused for a usage limit, and on the live event that reports one. */
+  rateLimit?: RateLimitInfo;
   images?: Array<{ path?: string; data?: string; name?: string }>;
   files?: Array<{ path?: string; name?: string; mimeType?: string; size?: number }>;
   toolName?: string;

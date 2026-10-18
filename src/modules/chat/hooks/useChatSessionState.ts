@@ -7,7 +7,7 @@ import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import { SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat/utils/sessionMessagePagination';
 import { createMessageHistoryRefreshCoordinator } from '@/modules/chat/utils/messageHistoryRefreshCoordinator';
 import { createCachedDiffCalculator } from '@/modules/chat/utils/messageTransforms';
-import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
+import { normalizedToChatMessages, readRefusingRateLimit } from '@/modules/chat/hooks/useChatMessages';
 import { findSearchTargetIndex, resolveSearchWindowSize } from '@/modules/chat/utils/searchTargetLocator';
 import { readSelectedProvider } from '@/shared/selectedProvider';
 import type { SearchTarget } from '@/modules/chat/utils/searchTargetLocator';
@@ -425,6 +425,9 @@ export function useChatSessionState({
     }
     return all;
   }, [storeMessages, pendingUserMessage]);
+
+  // The usage limit that refused the latest turn, while nothing has answered it.
+  const refusingRateLimit = useMemo(() => readRefusingRateLimit(storeMessages), [storeMessages]);
 
   /* ---------------------------------------------------------------- */
   /*  addMessage                                                       */
@@ -1196,6 +1199,7 @@ export function useChatSessionState({
 
   return {
     chatMessages,
+    refusingRateLimit,
     addMessage,
     sessionActivity,
     isProcessing,

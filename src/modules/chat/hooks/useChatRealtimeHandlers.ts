@@ -243,7 +243,8 @@ export function useChatRealtimeHandlers({
       // --- All other messages: route to store ---
       const shouldPersist =
         msg.kind !== 'complete'
-        && msg.kind !== 'status'
+        // A usage-limit report is kept: it says when a refused session can go on.
+        && (msg.kind !== 'status' || Boolean(msg.rateLimit))
         && msg.kind !== 'permission_request'
         && msg.kind !== 'permission_resolved'
         && msg.kind !== 'permission_cancelled';

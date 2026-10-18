@@ -29,6 +29,10 @@ import {
 } from '@/shared/context/SessionProtectionContext';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import RateLimitBanner from '@/modules/chat/composer/RateLimitBanner';
+
+/** What "Continue" sends after a usage limit. */
+const RATE_LIMIT_CONTINUE_PROMPT = 'Continue';
 import { findUserPrompts } from '@/modules/chat/utils/currentPrompt';
 import type { CurrentPrompt } from '@/modules/chat/utils/currentPrompt';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
@@ -169,6 +173,7 @@ function ChatInterface({
     scrollToBottomAndReset,
     handleScrollGesture,
     requestLatestMessages,
+    refusingRateLimit,
   } = useChatSessionState({
     isActive,
     selectedProject,
@@ -406,6 +411,37 @@ function ChatInterface({
     }
   }, [currentProviderEffort, currentProviderModel, input, permissionMode, scheduleMessage, setInput]);
 
+  // A refused turn goes on from a plain prompt: the refused one is already in
+  // the context, and the model picks it up from there.
+  const continueScheduledFor = useMemo(() => {
+    const resetsAt = refusingRateLimit?.resetsAt;
+    if (!resetsAt) return null;
+    const scheduled = scheduledMessages.find((message) => message.status === 'pending'
+      && message.content === RATE_LIMIT_CONTINUE_PROMPT
+      && Date.parse(message.scheduledFor) >= resetsAt);
+    return scheduled ? new Date(scheduled.scheduledFor) : null;
+  }, [refusingRateLimit, scheduledMessages]);
+
+  const handleContinueAtReset = useCallback(() => {
+    const resetsAt = refusingRateLimit?.resetsAt;
+    if (!resetsAt) return;
+    void scheduleMessage({
+      content: RATE_LIMIT_CONTINUE_PROMPT,
+      // A minute past the reset, so the first try does not land on its edge.
+      scheduledFor: new Date(resetsAt + 60_000),
+      options: { model: currentProviderModel, effort: currentProviderEffort, permissionMode },
+    });
+  }, [currentProviderEffort, currentProviderModel, permissionMode, refusingRateLimit, scheduleMessage]);
+
+  const rateLimitBanner = refusingRateLimit ? (
+    <RateLimitBanner
+      rateLimit={refusingRateLimit}
+      onContinue={() => sendPrompt(RATE_LIMIT_CONTINUE_PROMPT)}
+      onContinueAtReset={refusingRateLimit.resetsAt ? handleContinueAtReset : undefined}
+      continueScheduledFor={continueScheduledFor}
+    />
+  ) : null;
+
   const permissionContextValue = useMemo(() => ({
     pendingPermissionRequests,
     handlePermissionDecision,
@@ -585,6 +621,7 @@ function ChatInterface({
           userPrompts={userPrompts}
           onJumpToPrompt={handleJumpToPrompt}
           handoffPhase={canHandoffAndClear ? handoff.phase : null}
+          rateLimitBanner={rateLimitBanner}
           queueInterrupts={queueInterrupts}
           onHandoffAndClear={handoff.start}
           permissionMode={permissionMode}

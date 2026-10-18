@@ -61,6 +61,8 @@ type ChatComposerProps = {
   onJumpToPrompt: (prompt: CurrentPrompt) => void;
   /** Null hides the hand-off-and-clear button (setting off or not a Claude session). */
   handoffPhase: HandoffPhase | null;
+  /** Shown above the composer while the latest turn was refused for a usage limit. */
+  rateLimitBanner?: ReactNode;
   /** Queuing a message stops the running turn (Settings → Chat), so the queued card says so. */
   queueInterrupts?: boolean;
   onHandoffAndClear: () => void;
@@ -146,6 +148,7 @@ export default function ChatComposer({
   userPrompts,
   onJumpToPrompt,
   handoffPhase,
+  rateLimitBanner,
   queueInterrupts = false,
   onHandoffAndClear,
   permissionMode,
@@ -313,6 +316,8 @@ export default function ChatComposer({
           />
         </div>
       )}
+
+      {rateLimitBanner}
 
       <ScheduledMessageList
         scheduledMessages={scheduledMessages}

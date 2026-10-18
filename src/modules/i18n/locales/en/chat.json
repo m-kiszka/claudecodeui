@@ -412,5 +412,16 @@
     "customModelsOnlyHint": "Hide the built-in {{provider}} models from every model picker and make your first model the default. Built-in models stay listed until you add a model.",
     "builtInModelsHidden": "Hidden from model pickers while “Use only my models” is on.",
     "customModelsOnlyFailed": "Unable to change this setting."
+  },
+  "rateLimit": {
+    "session": "Session limit",
+    "weekly": "Weekly limit",
+    "generic": "Usage limit",
+    "reached": "{{limit}} reached",
+    "hasReset": "has reset, you can continue",
+    "resetsAt": "resets at {{time}} (in {{remaining}})",
+    "continueScheduled": "Continues at {{time}}",
+    "continueAtReset": "Continue when it resets",
+    "continue": "Continue"
   }
 }

@@ -37,6 +37,8 @@ test('a fresh install gets the documented defaults', () => {
     sendByCtrlEnter: false,
     sidebarVisible: true,
     voiceEnabled: false,
+    handoffAndClear: false,
+    queueInterrupts: false,
   });
 });
 

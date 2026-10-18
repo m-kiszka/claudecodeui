@@ -17,6 +17,8 @@ vi.mock('@/shared/api', () => ({
     providers: {
       sessionTokenUsage: () => Promise.resolve({ ok: false, json: async () => ({}) }),
     },
+    // Called on mount to pick up a context clear made in the Shell tab.
+    syncSession: () => Promise.resolve({ ok: false, json: async () => ({}) }),
   },
 }));
 

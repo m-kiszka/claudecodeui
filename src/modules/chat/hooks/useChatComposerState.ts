@@ -19,6 +19,7 @@ import type { BackgroundSendChoice, BackgroundSendPrompt, CommandModalPayload, C
 import { grantClaudeToolPermission } from '@/modules/chat/utils/chatPermissions';
 import {
   clearQueuedMessage,
+  syncQueuedMessage,
   hydrateChatDrafts,
   readDraftText,
   readQueuedMessage,
@@ -1229,7 +1230,9 @@ export function useChatComposerState({
       queuedDraft
       && (queuedDraft.content.trim() || (queuedDraft.uploadedAttachments?.length ?? 0) > 0)
     ) {
-      writeQueuedMessage(sessionKey, {
+      // A card restored from the store must not go back as a new queue: the
+      // server may already have sent it (see syncQueuedMessage).
+      syncQueuedMessage(sessionKey, {
         content: queuedDraft.content,
         options: queuedDraft.options,
         attachments: queuedDraft.uploadedAttachments,

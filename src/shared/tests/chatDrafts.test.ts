@@ -69,8 +69,10 @@ test('a draft is readable synchronously and reaches the server after the debounc
   assert.deepEqual(savedDrafts, [], 'the request must not fire on every keystroke');
 
   await vi.advanceTimersByTimeAsync(1_500);
+  // A text-only save leaves the queue out, so it cannot revive one the
+  // server has claimed meanwhile.
   assert.deepEqual(savedDrafts, [
-    { scope: 'session-a', text: 'half a thought', queuedMessage: null },
+    { scope: 'session-a', text: 'half a thought' },
   ]);
 });
 
@@ -93,7 +95,9 @@ test('a chat with no session yet is scoped to its project', async () => {
   assert.equal(store.readDraftText('session-a'), '');
 });
 
-test('clearing a draft deletes it on the server instead of storing an empty one', async () => {
+test('clearing a draft saves empty text instead of deleting the row', async () => {
+  // Deleting the row would take a queued message the server holds with it,
+  // and this client may not know about that queue.
   const store = await loadStore();
   store.writeDraftText('session-a', 'typed');
   await vi.advanceTimersByTimeAsync(1_500);
@@ -102,8 +106,8 @@ test('clearing a draft deletes it on the server instead of storing an empty one'
   store.writeDraftText('session-a', '');
   await vi.advanceTimersByTimeAsync(1_500);
 
-  assert.deepEqual(savedDrafts, []);
-  assert.deepEqual(deletedScopes, ['session-a']);
+  assert.deepEqual(savedDrafts, [{ scope: 'session-a', text: '' }]);
+  assert.deepEqual(deletedScopes, []);
 });
 
 test('a draft written in one page load is readable synchronously in the next', async () => {
@@ -228,4 +232,21 @@ test('reset clears the drafts so the next user does not see them', async () => {
 
   assert.equal(store.readDraftText('session-a'), '');
   assert.equal(localStorage.getItem('chat-drafts'), null);
+});
+
+test('a queued message restored from the mirror is not sent back as a new queue', async () => {
+  // The server claimed and sent it before this page load; writing the
+  // restored card back would queue, and send, the same message again.
+  const first = await loadStore();
+  first.writeQueuedMessage('session-a', { content: 'once', options: { model: 'opus' }, attachments: [] });
+  savedDrafts.length = 0;
+
+  const second = await loadStore();
+  second.syncQueuedMessage('session-a', { content: 'once', attachments: [], options: { model: 'opus' } });
+  await vi.advanceTimersByTimeAsync(1_500);
+  assert.deepEqual(savedDrafts, []);
+
+  second.syncQueuedMessage('session-a', { content: 'edited', options: { model: 'opus' }, attachments: [] });
+  const lastSave = (savedDrafts as SavedDraft[]).at(-1);
+  assert.equal((lastSave?.queuedMessage as { content?: string } | undefined)?.content, 'edited');
 });

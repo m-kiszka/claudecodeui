@@ -221,6 +221,38 @@ export function writeQueuedMessage(scope: string, message: StoredQueuedMessage):
   flushServerWritesNow();
 }
 
+/** JSON with object keys sorted, so a copy that round-tripped through the server compares equal. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, inner: unknown) => (
+    isRecord(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([a], [b]) => a.localeCompare(b)))
+      : inner
+  )) ?? '';
+}
+
+/**
+ * Mirrors a composer's queued card into the store, writing only when it says
+ * something the store does not already hold.
+ *
+ * The card is restored from this very store when a composer mounts. The
+ * server may have claimed and sent that message since — the store hears of
+ * it only on the next hydrate — so writing the restored copy back as new
+ * would queue, and send, the same message again. A deliberate queue goes
+ * through `writeQueuedMessage`, which always writes.
+ */
+export function syncQueuedMessage(scope: string, message: StoredQueuedMessage): void {
+  const current = readQueuedMessage(scope);
+  if (
+    current
+    && current.content === message.content
+    && stableJson(current.options) === stableJson(message.options)
+    && stableJson(current.attachments ?? []) === stableJson(message.attachments ?? [])
+  ) {
+    return;
+  }
+  writeQueuedMessage(scope, message);
+}
+
 export function clearQueuedMessage(scope: string): void {
   updateDraft(scope, { queuedMessage: null });
   // Editing or cancelling must beat the server's next dispatcher poll.

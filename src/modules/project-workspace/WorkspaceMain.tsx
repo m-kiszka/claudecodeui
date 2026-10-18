@@ -177,6 +177,7 @@ function WorkspaceMain({
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? showAllTasks : null}
+                onOpenShell={() => setActiveTab('shell')}
               />
             </WorkspaceErrorBoundary>
           </div>

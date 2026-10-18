@@ -423,5 +423,15 @@
     "continueScheduled": "Continues at {{time}}",
     "continueAtReset": "Continue when it resets",
     "continue": "Continue"
+  },
+  "remoteControl": {
+    "on": "Remote Control on",
+    "off": "Remote Control off",
+    "turnOn": "Turn Remote Control on",
+    "turnOff": "Turn Remote Control off",
+    "shellBusy": "Wait for the Shell-tab Claude to finish its turn",
+    "notConfirmed": "The Shell-tab Claude did not confirm the change. Check the Shell tab.",
+    "openShell": "Open Shell to switch",
+    "openShellHint": "Remote Control is switched from the Claude CLI in the Shell tab"
   }
 }

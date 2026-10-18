@@ -51,6 +51,16 @@ export const claudeShellSessions = {
     attachments.delete(ptyKey);
   },
 
+  /** The pty a Claude CLI for this app session runs in, or null when none is open. */
+  findPtyKey(sessionId: string): string | null {
+    for (const [ptyKey, attachment] of attachments) {
+      if (attachment.sessionId === sessionId) {
+        return ptyKey;
+      }
+    }
+    return null;
+  },
+
   /** Follows keystrokes line by line and notes when a clear command is entered. */
   recordInput(ptyKey: string, data: string): void {
     const attachment = attachments.get(ptyKey);

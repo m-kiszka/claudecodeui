@@ -18,6 +18,7 @@ import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelec
 import ToolGroupContainer from '@/modules/chat/transcript/ToolGroupContainer';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
 import ChatExportMenu from '@/modules/chat/transcript/ChatExportMenu';
+import { RemoteControlToggle } from '@/modules/chat/transcript/RemoteControlToggle';
 import { BackgroundTasksStrip } from '@/modules/chat/transcript/BackgroundTasksStrip';
 
 /**
@@ -70,6 +71,8 @@ type ChatMessagesPaneProps = {
   showLoadAllOverlay: boolean;
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
+  /** Switches the workspace to the Shell tab, where Remote Control is toggled. */
+  onOpenShell?: () => void;
   onShowSettings?: () => void;
   onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   showRawParameters?: boolean;
@@ -140,6 +143,7 @@ function ChatMessagesPane({
   onForkFromMessage,
   onLoadFullTranscript,
   onFileOpen,
+  onOpenShell,
   onShowSettings,
   onGrantToolPermission,
   showRawParameters,
@@ -210,7 +214,10 @@ function ChatMessagesPane({
               selectedProject={selectedProject}
             />
           </div>
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            {provider === 'claude' && (
+              <RemoteControlToggle sessionId={selectedSession?.id || currentSessionId} onOpenShell={onOpenShell} />
+            )}
             <ChatExportMenu
               messages={chatMessages}
               sessionTitle={selectedSession?.summary || selectedSession?.title}

@@ -56,6 +56,8 @@ type ChatInterfaceProps = {
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
   onShowAllTasks?: (() => void) | null;
+  /** Switches the workspace to the Shell tab, where Remote Control is toggled. */
+  onOpenShell?: () => void;
 };
 
 /**
@@ -81,6 +83,7 @@ function ChatInterface({
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
+  onOpenShell,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const clearAndContinueRef = useRef<(() => Promise<string | null>) | null>(null);
@@ -537,6 +540,7 @@ function ChatInterface({
         <MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}>
           <TranscriptSessionContext.Provider value={transcriptSessionValue}>
             <ChatMessagesPane
+              onOpenShell={onOpenShell}
               scrollContainerRef={scrollContainerRef}
               // Not redundant with the `scroll` listener. A first page is 20 rows,
               // tool results fold into their calls, and the "load earlier" link is

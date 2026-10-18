@@ -528,6 +528,28 @@ function prioritizeUserNpmGlobalBin(env: NodeJS.ProcessEnv): { key: string; valu
  * Used by this module's websocket gateway to connect the standalone Shell UI
  * to a retained PTY while keeping process lifecycle ownership on the server.
  */
+/**
+ * Types a line into the Shell-tab Claude CLI resumed for an app session, as
+ * if the user had. Used to run CLI-only commands (`/remote-control`) from the
+ * chat. Returns false when no such CLI is open; a plain shell in the same
+ * project is never written to.
+ */
+export function writeToClaudeShell(sessionId: string, line: string): boolean {
+  const ptyKey = claudeShellSessions.findPtyKey(sessionId);
+  const entry = ptyKey ? ptySessionsMap.get(ptyKey) : undefined;
+  if (!entry) {
+    return false;
+  }
+  entry.pty.write(`${line}\r`);
+  return true;
+}
+
+/** Whether a Shell-tab Claude CLI is open for this app session. */
+export function hasClaudeShell(sessionId: string): boolean {
+  const ptyKey = claudeShellSessions.findPtyKey(sessionId);
+  return Boolean(ptyKey && ptySessionsMap.has(ptyKey));
+}
+
 export function handleShellConnection(
   ws: WebSocket,
   dependencies: ShellWebSocketDependencies

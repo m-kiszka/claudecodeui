@@ -292,6 +292,14 @@ export const api = {
   // Indexes what the session's terminal did now instead of on the next poll.
   syncSession: (sessionId: string) =>
     post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/sync`),
+  // Whether the conversation is bridged to Claude Remote Control; toggled
+  // through the session's Shell-tab CLI.
+  remoteControl: {
+    get: (sessionId: string) =>
+      get(`/api/providers/sessions/${encodeURIComponent(sessionId)}/remote-control`),
+    set: (sessionId: string, enabled: boolean) =>
+      post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/remote-control`, { enabled }),
+  },
   renameSession: (sessionId: string, summary: string) =>
     put(`/api/providers/sessions/${sessionId}`, { summary }),
   // What one agent of a workflow run did, read from its transcript on demand

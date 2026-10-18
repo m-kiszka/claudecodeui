@@ -8,6 +8,7 @@ import { providerModelsService } from '@/modules/providers/services/provider-mod
 import { providerTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
+import { remoteControlService } from '@/modules/providers/services/remote-control.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import type {
   CustomProviderModelEffort,
@@ -1058,6 +1059,28 @@ router.get(
     const taskId = parseBackgroundTaskId(req.params.taskId);
     const result = await sessionsService.readBackgroundCommandOutput(sessionId, taskId);
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/** Whether the session is bridged to Claude Remote Control, and whether it can be toggled here. */
+router.get(
+  '/sessions/:sessionId/remote-control',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    res.json(createApiSuccessResponse(await remoteControlService.readState(sessionId)));
+  }),
+);
+
+/** Turns Remote Control on or off through the session's Shell-tab CLI. */
+router.post(
+  '/sessions/:sessionId/remote-control',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const enabled = (req.body as { enabled?: unknown } | undefined)?.enabled;
+    if (typeof enabled !== 'boolean') {
+      throw new AppError('`enabled` must be a boolean.', { code: 'INVALID_REMOTE_CONTROL_STATE', statusCode: 400 });
+    }
+    res.json(createApiSuccessResponse(await remoteControlService.setEnabled(sessionId, enabled)));
   }),
 );
 

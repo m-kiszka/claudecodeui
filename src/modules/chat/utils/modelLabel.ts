@@ -34,3 +34,30 @@ export const formatAnsweringModelLabel = (model: string | undefined): string | n
 
   return normalized.endsWith('[1m]') ? `${family[1]} 1M` : family[1];
 };
+
+/**
+ * A Claude model id in the spelling the model menu shows: `claude-opus-5-5`
+ * reads "Opus 5.5", `claude-haiku-4-5-20251001` "Haiku 4.5", and a `[1m]`
+ * suffix "(1M context)" as the catalog writes it. Returns `null` for an id
+ * that is not a versioned Claude id, so the caller can fall back to it.
+ */
+export const formatClaudeModelName = (model: string | undefined): string | null => {
+  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(\[1m\])?$/i.exec(model?.trim() ?? '');
+  if (!match) {
+    return null;
+  }
+  const [, familyToken, major, minor, oneMillion] = match;
+  const family = MODEL_FAMILY_LABELS.find(([token]) => token === familyToken.toLowerCase())?.[1]
+    ?? `${familyToken[0].toUpperCase()}${familyToken.slice(1)}`;
+  const version = minor ? `${major}.${minor}` : major;
+  return `${family} ${version}${oneMillion ? ' (1M context)' : ''}`;
+};
+
+/** The version part of a Claude model id ("5.5" for `claude-opus-5-5`), or `null`. */
+export const readClaudeModelVersion = (model: string | undefined): { family: string; version: string } | null => {
+  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(?:\[1m\])?$/i.exec(model?.trim() ?? '');
+  if (!match) {
+    return null;
+  }
+  return { family: match[1].toLowerCase(), version: match[3] ? `${match[2]}.${match[3]}` : match[2] };
+};

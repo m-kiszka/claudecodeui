@@ -420,6 +420,11 @@ function ChatInterface({
   const transcriptSessionValue = useMemo(() => ({ sessionId: currentSessionId }), [currentSessionId]);
 
   const userPrompts = useMemo(() => findUserPrompts(chatMessages), [chatMessages]);
+  // The model that answered last: it names the version a model alias resolved to.
+  const latestAnsweringModel = useMemo(
+    () => [...chatMessages].reverse().find((message) => message.type === 'assistant' && typeof message.model === 'string')?.model,
+    [chatMessages],
+  );
 
   const handoff = useHandoffAndClear({
     sessionId: currentSessionId || selectedSession?.id || null,
@@ -570,6 +575,7 @@ function ChatInterface({
           )}
 
           <ChatComposer
+          answeringModel={latestAnsweringModel}
           pendingPermissionRequests={pendingPermissionRequests}
           handlePermissionDecision={handlePermissionDecision}
           handleGrantToolPermission={handleGrantToolPermission}

@@ -72,6 +72,8 @@ type ChatComposerProps = {
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
   onSelectEffort: (effort: string) => void;
   model: string;
+  /** The model id that answered the session's latest reply. */
+  answeringModel?: string;
   availableModelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => void;
   modelsLoading: boolean;
@@ -154,6 +156,7 @@ export default function ChatComposer({
   availableEffortOptions,
   onSelectEffort,
   model,
+  answeringModel,
   availableModelOptions,
   onSelectModel,
   modelsLoading,
@@ -554,6 +557,7 @@ export default function ChatComposer({
               modelOptions={availableModelOptions}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
+              answeringModel={answeringModel}
             />
 
             <ComposerPermissionMenu

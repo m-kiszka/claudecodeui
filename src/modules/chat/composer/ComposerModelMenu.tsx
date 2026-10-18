@@ -12,6 +12,7 @@ import {
   ComposerMenuSeparator,
   ComposerMenuSurface,
 } from '@/modules/chat/composer/ComposerMenuPrimitives';
+import { formatClaudeModelName, readClaudeModelVersion } from '@/modules/chat/utils/modelLabel';
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
 
@@ -25,6 +26,8 @@ type ComposerModelMenuProps = {
   modelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => void;
   modelsLoading: boolean;
+  /** The model id that answered the session's latest reply, which names the version an alias resolved to. */
+  answeringModel?: string;
 };
 
 /**
@@ -39,6 +42,7 @@ function ComposerModelMenu({
   modelOptions,
   onSelectModel,
   modelsLoading,
+  answeringModel,
 }: ComposerModelMenuProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
@@ -65,7 +69,16 @@ function ComposerModelMenu({
     () => modelOptions.find((option) => option.value === model) ?? null,
     [model, modelOptions],
   );
-  const modelLabel = selectedModelOption?.label || model;
+  // An alias ("Opus") names a family, not a version; the reply that ran on it
+  // says which one it is. A full id outside the catalog is spelled out.
+  const answered = readClaudeModelVersion(answeringModel);
+  const catalogLabel = selectedModelOption?.label || model;
+  const modelLabel = !selectedModelOption
+    ? formatClaudeModelName(model) ?? model
+    : answered && selectedModelOption.value.toLowerCase().startsWith(answered.family)
+      // "Opus (1M context)" reads "Opus 5.5 (1M context)"; a stated version is replaced.
+      ? catalogLabel.replace(/^([A-Za-z]+)(?: \d+(?:\.\d+)?)?/, `$1 ${answered.version}`)
+      : catalogLabel;
 
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;

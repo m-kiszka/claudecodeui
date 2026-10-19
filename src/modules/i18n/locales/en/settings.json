@@ -132,6 +132,11 @@
       "title": "Context",
       "handoffAndClear": "Hand off and clear button",
       "handoffAndClearDescription": "Adds a composer button that runs /handoff, clears the context and resumes from the handoff in the same conversation."
+    },
+    "rateLimit": {
+      "title": "Usage limits",
+      "continuePrompt": "Continue prompt",
+      "continuePromptDescription": "What Continue sends after a usage limit, now or when the limit resets. Leave empty for \"{{fallback}}\"."
     }
   },
   "mainTabs": {

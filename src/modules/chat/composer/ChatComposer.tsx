@@ -10,7 +10,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon, ScissorsIcon, FastForwardIcon } from 'lucide-react';
+import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon, ScissorsIcon } from 'lucide-react';
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
@@ -65,7 +65,7 @@ type ChatComposerProps = {
   rateLimitBanner?: ReactNode;
   /** Queuing a message stops the running turn (Settings → Chat), so the queued card says so. */
   queueInterrupts?: boolean;
-  onHandoffAndClear: (continueAfter?: boolean) => void;
+  onHandoffAndClear: () => void;
   permissionMode: PermissionMode;
   availablePermissionModes: PermissionMode[];
   onSelectPermissionMode: (mode: PermissionMode) => void;
@@ -507,22 +507,11 @@ export default function ChatComposer({
                     ? t('input.handoffAndClear')
                     : t('input.handoffAndClearRunning'),
                 }}
-                onClick={() => onHandoffAndClear()}
+                onClick={onHandoffAndClear}
                 disabled={handoffPhase !== 'idle' || isLoading || hasInput}
                 aria-label={t('input.handoffAndClear')}
               >
                 {handoffPhase === 'idle' ? <ScissorsIcon /> : <Loader2 className="animate-spin" />}
-              </PromptInputButton>
-            )}
-
-            {handoffPhase === 'idle' && (
-              <PromptInputButton
-                tooltip={{ content: t('input.handoffAndContinue') }}
-                onClick={() => onHandoffAndClear(true)}
-                disabled={isLoading || hasInput}
-                aria-label={t('input.handoffAndContinue')}
-              >
-                <FastForwardIcon />
               </PromptInputButton>
             )}
 

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/shared/api';
 import type { ChatMessage } from '@/shared/types';
 
-export type HandoffPhase = 'idle' | 'handoff' | 'resuming' | 'continuing';
+export type HandoffPhase = 'idle' | 'handoff' | 'resuming';
 
 type UseHandoffAndClearArgs = {
   sessionId: string | null;
@@ -14,9 +14,6 @@ type UseHandoffAndClearArgs = {
 
 /** The resume line the handoff skill prints, e.g. `/handoff 2026-10-14-0104-slug-<id>`. */
 const HANDOFF_ID_PATTERN = /\/handoff\s+(\d{4}-\d{2}-\d{2}-\d{4}-[A-Za-z0-9._-]+)/;
-
-/** Sent after the resume turn when the user asked to keep going without a stop. */
-const CONTINUE_PROMPT = 'Continue with the in-progress task from the handoff (or the first pending one) without asking for confirmation.';
 
 function findHandoffId(messages: ChatMessage[], fromIndex: number): string | null {
   for (let index = messages.length - 1; index >= fromIndex; index -= 1) {
@@ -31,8 +28,7 @@ function findHandoffId(messages: ChatMessage[], fromIndex: number): string | nul
 /**
  * Used by ChatInterface for the composer's "hand off and clear" button: runs
  * `/handoff`, clears the session's context once that turn ends, and resumes
- * from the written handoff in the same session. The "continue" variant then
- * also tells the resumed session to carry on with the open task.
+ * from the written handoff in the same session.
  */
 export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, sendPrompt }: UseHandoffAndClearArgs) {
   const [phase, setPhase] = useState<HandoffPhase>('idle');
@@ -40,13 +36,10 @@ export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, send
   const sawRunRef = useRef(false);
   const startIndexRef = useRef(0);
   const sessionIdRef = useRef(sessionId);
-  // Whether the resume turn is followed by a prompt to carry on with the work.
-  const continueAfterRef = useRef(false);
 
-  const start = useCallback((continueAfter = false) => {
+  const start = useCallback(() => {
     if (!sessionId || isProcessing || phase !== 'idle') return;
     sessionIdRef.current = sessionId;
-    continueAfterRef.current = continueAfter;
     sawRunRef.current = false;
     startIndexRef.current = chatMessages.length;
     setPhase('handoff');
@@ -66,13 +59,7 @@ export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, send
     }
     if (!sawRunRef.current) return;
 
-    if (phase === 'resuming' && continueAfterRef.current) {
-      sawRunRef.current = false;
-      setPhase('continuing');
-      sendPrompt(CONTINUE_PROMPT);
-      return;
-    }
-    if (phase === 'resuming' || phase === 'continuing') {
+    if (phase === 'resuming') {
       setPhase('idle');
       return;
     }

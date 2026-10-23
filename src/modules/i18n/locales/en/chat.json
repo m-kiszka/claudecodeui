@@ -140,6 +140,7 @@
     "attachFiles": "Attach files",
     "handoffAndClear": "Hand off and clear the context",
     "handoffAndClearRunning": "Handing off…",
+    "handoffAndContinue": "Hand off, clear the context and continue the work",
     "attachImages": "Attach images",
     "send": "Send",
     "stop": "Stop",

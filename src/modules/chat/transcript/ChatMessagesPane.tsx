@@ -19,6 +19,7 @@ import ToolGroupContainer from '@/modules/chat/transcript/ToolGroupContainer';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
 import ChatExportMenu from '@/modules/chat/transcript/ChatExportMenu';
 import { RemoteControlToggle } from '@/modules/chat/transcript/RemoteControlToggle';
+import { ReloadMessagesButton } from '@/modules/chat/transcript/ReloadMessagesButton';
 import { BackgroundTasksStrip } from '@/modules/chat/transcript/BackgroundTasksStrip';
 
 /**
@@ -84,6 +85,8 @@ type ChatMessagesPaneProps = {
   onForkFromMessage?: (message: ChatMessage) => void;
   /** Fetches the whole transcript for an export, which otherwise only sees the loaded page. */
   onLoadFullTranscript?: () => Promise<ChatMessage[]>;
+  /** Re-reads the transcript from disk, e.g. after turns run in the Shell tab. */
+  onReloadMessages?: () => Promise<void>;
 };
 
 /**
@@ -142,6 +145,7 @@ function ChatMessagesPane({
   onEditMessage,
   onForkFromMessage,
   onLoadFullTranscript,
+  onReloadMessages,
   onFileOpen,
   onOpenShell,
   onShowSettings,
@@ -218,6 +222,7 @@ function ChatMessagesPane({
             {provider === 'claude' && (
               <RemoteControlToggle sessionId={selectedSession?.id || currentSessionId} onOpenShell={onOpenShell} />
             )}
+            {onReloadMessages && <ReloadMessagesButton onReload={onReloadMessages} />}
             <ChatExportMenu
               messages={chatMessages}
               sessionTitle={selectedSession?.summary || selectedSession?.title}

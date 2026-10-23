@@ -1164,6 +1164,36 @@ export function useChatSessionState({
     return normalizedToChatMessages(sessionStore.getMessages(sessionId));
   }, [sessionStore]);
 
+  /**
+   * Manual resync with the transcript on disk. The automatic refresh only
+   * stitches the latest page onto the cache and keeps the cache when it cannot
+   * bridge the gap (e.g. many turns run in the Shell-tab CLI), so this indexes
+   * the session now and replaces the cache with a fresh latest page.
+   */
+  const reloadMessagesFromDisk = useCallback(async () => {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId) return;
+
+    await api.syncSession(sessionId).catch(() => undefined);
+    const slot = await sessionStore.fetchFromServer(sessionId, {
+      limit: SESSION_MESSAGES_PAGE_SIZE,
+      offset: 0,
+      canRequest: () => activeSessionIdRef.current === sessionId,
+    });
+    if (!slot || activeSessionIdRef.current !== sessionId) return;
+
+    setHasMoreMessages(slot.hasMore);
+    setTotalMessages(slot.total);
+    messagesOffsetRef.current = slot.offset;
+    setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setAllMessagesLoaded(false);
+    allMessagesLoadedRef.current = false;
+    if (slot.tokenUsage !== undefined) {
+      setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+    }
+    setTimeout(() => scrollToBottom(), 200);
+  }, [scrollToBottom, sessionStore]);
+
   const loadEarlierMessages = useCallback(() => {
     setVisibleMessageCount((prev) => prev + 100);
   }, []);
@@ -1220,6 +1250,7 @@ export function useChatSessionState({
     revealMessage,
     loadAllMessages,
     loadFullTranscript,
+    reloadMessagesFromDisk,
     allMessagesLoaded,
     isLoadingAllMessages,
     loadAllJustFinished,

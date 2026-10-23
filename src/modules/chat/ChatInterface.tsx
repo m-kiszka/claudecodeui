@@ -164,6 +164,7 @@ function ChatInterface({
     revealMessage,
     loadAllMessages,
     loadFullTranscript,
+    reloadMessagesFromDisk,
     allMessagesLoaded,
     isLoadingAllMessages,
     loadAllJustFinished,
@@ -594,6 +595,7 @@ function ChatInterface({
               onEditMessage={supportsMessageEditing && !isProcessing ? beginEditMessage : undefined}
               onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
               onLoadFullTranscript={loadFullTranscript}
+              onReloadMessages={reloadMessagesFromDisk}
             />
           </TranscriptSessionContext.Provider>
         </MarkdownWorkspaceContext.Provider>

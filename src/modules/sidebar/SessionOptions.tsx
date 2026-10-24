@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, GitBranch, MoreHorizontal, Trash2, X } from 'lucide-react';
+import { Check, Edit2, FolderOpen, GitBranch, MoreHorizontal, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
+import { api } from '@/shared/api';
 import { ActionMenu } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { LLMProvider } from '@/shared/types';
@@ -175,6 +176,23 @@ export default function SessionOptions({
               closeOnSelect: false,
               onSelect: handleCopyAction,
             },
+            ...(projectId !== null ? [{
+              key: 'open-folder',
+              label: 'Open folder in explorer',
+              icon: FolderOpen,
+              onSelect: () => {
+                void api.openProjectFolder(projectId)
+                  .then(async (response) => {
+                    if (response.ok) return;
+                    const payload = await response.json().catch(() => null) as { error?: { message?: string } | string } | null;
+                    const reason = typeof payload?.error === 'string' ? payload.error : payload?.error?.message;
+                    window.alert(`Could not open the folder: ${reason ?? `HTTP ${response.status}`}`);
+                  })
+                  .catch((error) => {
+                    console.error('Opening the project folder failed:', error);
+                  });
+              },
+            }] : []),
             ...(canFork && onFork ? [{
               key: 'fork',
               label: 'Fork session',

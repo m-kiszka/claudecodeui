@@ -243,6 +243,9 @@ export const api = {
     post('/api/projects/migrate-legacy-stars', { projectIds }),
   toggleProjectStar: (projectId: string) =>
     post(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`),
+  // Opens the project directory in the file manager of the server machine.
+  openProjectFolder: (projectId: string) =>
+    post(`/api/projects/${encodeURIComponent(projectId)}/open-folder`),
   // A clone is two requests: the details (GitHub token included) go in this
   // POST body, and the returned `cloneId` is all the progress stream's URL
   // carries — URLs land in access logs, proxy logs and browser history.

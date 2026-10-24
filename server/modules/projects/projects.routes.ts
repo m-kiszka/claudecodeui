@@ -9,6 +9,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
+import { openProjectFolder } from '@/modules/projects/services/project-open-folder.service.js';
 
 /**
  * How long a posted clone request waits for its progress stream to be opened.
@@ -179,6 +180,15 @@ router.post(
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { isStarred } = toggleProjectStar(projectId);
     res.json({ success: true, isStarred });
+  }),
+);
+
+router.post(
+  '/:projectId/open-folder',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const projectPath = openProjectFolder(projectId);
+    res.json(createApiSuccessResponse({ projectPath }));
   }),
 );
 

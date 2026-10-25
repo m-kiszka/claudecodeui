@@ -15,6 +15,31 @@ type UseHandoffAndClearArgs = {
 /** The resume line the handoff skill prints, e.g. `/handoff 2026-10-14-0104-slug-<id>`. */
 const HANDOFF_ID_PATTERN = /\/handoff\s+(\d{4}-\d{2}-\d{2}-\d{4}-[A-Za-z0-9._-]+)/;
 
+/** A just-finished run can still be winding down server-side; retry the clear for about 30 s. */
+const CLEAR_RETRY_DELAY_MS = 3_000;
+const CLEAR_MAX_ATTEMPTS = 10;
+
+/**
+ * Clears the session's context, retrying while the server still reports the
+ * session busy. Resolves to an error message for the user, or null.
+ */
+async function clearContextWithRetry(sessionId: string): Promise<string | null> {
+  for (let attempt = 1; ; attempt += 1) {
+    const response = await api.clearSessionContext(sessionId);
+    if (response.ok) return null;
+
+    const payload = await response.json().catch(() => null) as { error?: { message?: string; code?: string } | string } | null;
+    const error = payload?.error;
+    const code = typeof error === 'object' ? error?.code : undefined;
+    if (code === 'SESSION_BUSY' && attempt < CLEAR_MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, CLEAR_RETRY_DELAY_MS));
+      continue;
+    }
+    const reason = typeof error === 'string' ? error : error?.message;
+    return `Clearing the context failed: ${reason ?? `HTTP ${response.status}`}`;
+  }
+}
+
 function findHandoffId(messages: ChatMessage[], fromIndex: number): string | null {
   for (let index = messages.length - 1; index >= fromIndex; index -= 1) {
     const message = messages[index];
@@ -57,7 +82,11 @@ export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, send
       sawRunRef.current = true;
       return;
     }
-    if (!sawRunRef.current) return;
+    // A short turn can start and end between two renders, so the written
+    // handoff's resume line also counts as the end of the handoff turn.
+    if (!sawRunRef.current) {
+      if (phase !== 'handoff' || !findHandoffId(chatMessages, startIndexRef.current)) return;
+    }
 
     if (phase === 'resuming') {
       setPhase('idle');
@@ -71,11 +100,12 @@ export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, send
     void (async () => {
       try {
         if (!targetSessionId) throw new Error('No session');
-        const response = await api.clearSessionContext(targetSessionId);
-        if (!response.ok) throw new Error(`Clearing the context failed (${response.status})`);
+        const failure = await clearContextWithRetry(targetSessionId);
+        if (failure) throw new Error(failure);
         sendPrompt(handoffId ? `/handoff ${handoffId}` : '/handoff');
       } catch (error) {
         console.error('Hand off and clear failed:', error);
+        window.alert(error instanceof Error ? error.message : 'Hand off and clear failed.');
         setPhase('idle');
       }
     })();
@@ -87,15 +117,29 @@ export function useHandoffAndClear({ sessionId, isProcessing, chatMessages, send
    */
   const continueFromLatestHandoff = useCallback(async (): Promise<string | null> => {
     if (!sessionId) return 'There is no session to clear.';
-    if (isProcessing) return 'Wait for the current response to finish first.';
+    if (isProcessing || phase !== 'idle') return 'Wait for the current response to finish first.';
     const handoffId = findHandoffId(chatMessages, 0);
     if (!handoffId) return 'No handoff was written in this conversation yet. Run /handoff first.';
 
-    const response = await api.clearSessionContext(sessionId);
-    if (!response.ok) return `Clearing the context failed (${response.status}).`;
+    // The resume turn ends the sequence, as after the button's own handoff.
+    sessionIdRef.current = sessionId;
+    sawRunRef.current = false;
+    setPhase('resuming');
+    const failure = await clearContextWithRetry(sessionId);
+    if (failure) {
+      setPhase('idle');
+      return failure;
+    }
     sendPrompt(`/handoff ${handoffId}`);
     return null;
-  }, [chatMessages, isProcessing, sendPrompt, sessionId]);
+  }, [chatMessages, isProcessing, phase, sendPrompt, sessionId]);
 
-  return { phase, start, continueFromLatestHandoff };
+  /** The composer button for {@link continueFromLatestHandoff}; failures are shown to the user. */
+  const continueFromHandoff = useCallback(() => {
+    void continueFromLatestHandoff().then((failure) => {
+      if (failure) window.alert(failure);
+    });
+  }, [continueFromLatestHandoff]);
+
+  return { phase, start, continueFromLatestHandoff, continueFromHandoff };
 }

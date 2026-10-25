@@ -10,7 +10,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon, ScissorsIcon } from 'lucide-react';
+import { PaperclipIcon, MessageSquareIcon, MessageSquareTextIcon, XIcon, Loader2, ArrowUpIcon, PencilIcon, ScissorsIcon, RotateCcwIcon } from 'lucide-react';
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
@@ -66,6 +66,7 @@ type ChatComposerProps = {
   /** Queuing a message stops the running turn (Settings → Chat), so the queued card says so. */
   queueInterrupts?: boolean;
   onHandoffAndClear: () => void;
+  onContinueFromHandoff: () => void;
   permissionMode: PermissionMode;
   availablePermissionModes: PermissionMode[];
   onSelectPermissionMode: (mode: PermissionMode) => void;
@@ -151,6 +152,7 @@ export default function ChatComposer({
   rateLimitBanner,
   queueInterrupts = false,
   onHandoffAndClear,
+  onContinueFromHandoff,
   permissionMode,
   availablePermissionModes,
   onSelectPermissionMode,
@@ -512,6 +514,21 @@ export default function ChatComposer({
                 aria-label={t('input.handoffAndClear')}
               >
                 {handoffPhase === 'idle' ? <ScissorsIcon /> : <Loader2 className="animate-spin" />}
+              </PromptInputButton>
+            )}
+
+            {handoffPhase !== null && (
+              <PromptInputButton
+                tooltip={{
+                  content: handoffPhase === 'idle'
+                    ? t('input.continueFromHandoff')
+                    : t('input.handoffAndClearRunning'),
+                }}
+                onClick={onContinueFromHandoff}
+                disabled={handoffPhase !== 'idle' || isLoading || hasInput}
+                aria-label={t('input.continueFromHandoff')}
+              >
+                {handoffPhase === 'idle' ? <RotateCcwIcon /> : <Loader2 className="animate-spin" />}
               </PromptInputButton>
             )}
 

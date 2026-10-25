@@ -629,6 +629,7 @@ function ChatInterface({
           rateLimitBanner={rateLimitBanner}
           queueInterrupts={queueInterrupts}
           onHandoffAndClear={handoff.start}
+          onContinueFromHandoff={handoff.continueFromHandoff}
           permissionMode={permissionMode}
           availablePermissionModes={availablePermissionModes}
           onSelectPermissionMode={selectPermissionMode}

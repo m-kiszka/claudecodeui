@@ -920,7 +920,13 @@ export function useChatComposerState({
           return;
         }
 
-        const queuedOptions = buildSendOptions(currentInput);
+        // Queueing interrupts the running turn, which the model would otherwise
+        // read as the user abandoning that request; the flag tells the
+        // provider it was only stopped so this message arrives sooner.
+        const interruptsRunningTurn = queueInterruptsRef.current && !submitOptions?.appPrompt;
+        const queuedOptions = interruptsRunningTurn
+          ? { ...buildSendOptions(currentInput), resumesInterruptedTurn: true }
+          : buildSendOptions(currentInput);
         const queuedSessionKey = sessionKey;
         let uploadedAttachments: unknown[] = [];
         try {
@@ -943,7 +949,7 @@ export function useChatComposerState({
           options: queuedOptions,
         }, queuedSessionKey);
         // The server sends the queued turn as soon as the stopped run ends.
-        if (queueInterruptsRef.current && !submitOptions?.appPrompt) {
+        if (interruptsRunningTurn) {
           handleAbortSessionRef.current?.();
         }
         return;

@@ -298,8 +298,29 @@ export function buildClaudeSdkEnv(hostEnv: NodeJS.ProcessEnv = process.env): Nod
   };
 }
 
-function mapCliOptionsToSDK(options: AnyRecord = {}) {
-  const { providerSessionId, cwd, toolsSettings, permissionMode, effort, resumeAnchorId, resumeFromScratch } = options;
+/**
+ * Appended to the system prompt of a turn whose message interrupted the
+ * previous one. The CLI records that stop as "[Request interrupted by user]",
+ * which reads as the request being cancelled.
+ */
+const INTERRUPTED_TURN_NOTE = [
+  'If the previous user request in this conversation shows as interrupted, the user did not cancel it.',
+  'It was stopped only so that the new message could be delivered sooner.',
+  'Finish the interrupted request as well as the new message,',
+  'unless the new message changes or replaces it.',
+].join(' ');
+
+export function mapCliOptionsToSDK(options: AnyRecord = {}) {
+  const {
+    providerSessionId,
+    cwd,
+    toolsSettings,
+    permissionMode,
+    effort,
+    resumeAnchorId,
+    resumeFromScratch,
+    resumesInterruptedTurn,
+  } = options;
 
   const sdkOptions: AnyRecord = {};
 
@@ -362,7 +383,10 @@ function mapCliOptionsToSDK(options: AnyRecord = {}) {
 
   sdkOptions.systemPrompt = {
     type: 'preset',
-    preset: 'claude_code'
+    preset: 'claude_code',
+    // Set on a message queued with "interrupt to send": the stop that delivered
+    // it is not the user cancelling the request it cut short.
+    ...(resumesInterruptedTurn === true ? { append: INTERRUPTED_TURN_NOTE } : {}),
   };
 
   sdkOptions.settingSources = ['project', 'user', 'local'];

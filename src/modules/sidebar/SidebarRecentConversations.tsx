@@ -2,7 +2,7 @@ import { MessageSquare } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
 
-import { Button, LLMProviderLogo, Tooltip } from '@/shared/ui';
+import { Button, LLMProviderLogo } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { ProjectSession, RecentConversationListItem, SessionRowActions } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
@@ -128,6 +128,7 @@ export default function SidebarRecentConversations({
             isProcessing,
             awaitingInputSessionIds,
             unreadCompletedSessionIds,
+            hasBackgroundWork,
           );
           // Resolved per row so a keystroke in one rename does not redraw the rest.
           const rename = sessionActions.activeRename;
@@ -173,21 +174,8 @@ export default function SidebarRecentConversations({
                   </span>
                   <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
                     <span className="truncate">{conversation.projectDisplayName}</span>
-                    {/* A response in flight or a question shows by the title instead. */}
-                    {sessionStatus === 'working' || sessionStatus === 'awaiting-input' ? null : hasBackgroundWork ? (
-                      // No spinner: nothing is responding. The purple of the
-                      // workflow and agent cards says what is still running.
-                      <>
-                        <span className="flex-shrink-0 text-muted-foreground/40">·</span>
-                        <Tooltip content={t('tooltips.backgroundWorkIndicator', 'Background work running')} position="top">
-                          <span
-                            role="status"
-                            aria-label={t('tooltips.backgroundWorkIndicator', 'Background work running')}
-                            className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400"
-                          />
-                        </Tooltip>
-                      </>
-                    ) : age && (
+                    {/* Running work shows by the title instead (SessionStatusIcon). */}
+                    {sessionStatus === 'working' || sessionStatus === 'awaiting-input' || sessionStatus === 'background' ? null : age && (
                       <>
                         <span className="flex-shrink-0 text-muted-foreground/40">·</span>
                         <time className="flex-shrink-0 tabular-nums" dateTime={conversation.lastActivity ?? undefined}>

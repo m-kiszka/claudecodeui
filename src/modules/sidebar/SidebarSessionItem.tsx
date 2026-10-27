@@ -68,16 +68,13 @@ function SidebarSessionItem({
   const isCompact = useCompactSidebar();
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
-  const sessionStatus = useSessionStatus(session.id, isSelected, isProcessing);
+  const sessionStatus = useSessionStatus(session.id, isSelected, isProcessing, hasBackgroundWork);
   const compactSessionAge = formatCompactAge(sessionView.sessionTime, currentTime);
   const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState(false);
-  // Background work takes the recent-activity dot's place: the session is
-  // still doing something, which says more than that it was touched lately.
-  const showBackgroundIndicator = hasBackgroundWork;
-  const showRecentIndicator = !showBackgroundIndicator && !isProcessing && sessionView.isActive;
-  const indicatorLabel = showBackgroundIndicator
-    ? t('tooltips.backgroundWorkIndicator', { defaultValue: 'Background work running' })
-    : t('tooltips.activeSessionIndicator');
+  // Background work is a status of its own (see SessionStatusIcon), so the
+  // dot only says that the session was touched lately.
+  const showRecentIndicator = !isProcessing && sessionView.isActive;
+  const indicatorLabel = t('tooltips.activeSessionIndicator');
   const providerLabel = PROVIDER_LABELS[session.__provider];
 
   // The desktop controls live in SessionOptions, which owns the rename panel and
@@ -148,16 +145,13 @@ function SidebarSessionItem({
   return (
     <div className="group relative">
       <SessionStatusIcon status={sessionStatus} t={t} />
-      {!sessionStatus && (showBackgroundIndicator || showRecentIndicator) && (
+      {!sessionStatus && showRecentIndicator && (
         <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
           <Tooltip content={indicatorLabel} position="right">
             <div
               role="status"
               aria-label={indicatorLabel}
-              className={cn(
-                'h-2 w-2 animate-pulse rounded-full',
-                showBackgroundIndicator ? 'bg-purple-500 dark:bg-purple-400' : 'bg-green-500',
-              )}
+              className="h-2 w-2 animate-pulse rounded-full bg-green-500"
             />
           </Tooltip>
         </div>

@@ -15,7 +15,19 @@ export function useSessionStatusSets(): SessionStatusSets {
 }
 
 /** Hook form of getSessionStatus for a component that renders one row. */
-export function useSessionStatus(sessionId: string, isSelected: boolean, isProcessing: boolean): SessionStatus {
+export function useSessionStatus(
+  sessionId: string,
+  isSelected: boolean,
+  isProcessing: boolean,
+  hasBackgroundWork = false,
+): SessionStatus {
   const { awaitingInputSessionIds, unreadCompletedSessionIds } = useSessionStatusSets();
-  return getSessionStatus(sessionId, isSelected, isProcessing, awaitingInputSessionIds, unreadCompletedSessionIds);
+  return getSessionStatus(
+    sessionId,
+    isSelected,
+    isProcessing,
+    awaitingInputSessionIds,
+    unreadCompletedSessionIds,
+    hasBackgroundWork,
+  );
 }

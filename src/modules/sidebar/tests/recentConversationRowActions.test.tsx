@@ -141,7 +141,7 @@ test('a running session is marked processing and shows a spinner instead of its 
   assert.equal(container.querySelectorAll('time').length, 1);
 });
 
-test('a session with only background work running gets the purple dot, not the spinner, and is not processing', () => {
+test('a session with only background work running gets the purple status icon, not the spinner, and is not processing', () => {
   // Its turn has ended: the row's destructive actions stay available and
   // nothing spins, but the session still counts as running and says so.
   const { container } = renderList(
@@ -151,8 +151,9 @@ test('a session with only background work running gets the purple dot, not the s
 
   assert.equal(recordedOptionsProps[0].isProcessing, false);
   assert.equal(container.querySelectorAll('.animate-spin').length, 0);
-  const dots = container.querySelectorAll('[role="status"].bg-purple-500');
-  assert.equal(dots.length, 1);
-  assert.equal(dots[0].getAttribute('aria-label'), 'tooltips.backgroundWorkIndicator');
+  const statuses = container.querySelectorAll('[role="status"]');
+  assert.equal(statuses.length, 1);
+  assert.equal(statuses[0].getAttribute('aria-label'), 'tooltips.backgroundWorkIndicator');
+  assert.ok(statuses[0].querySelector('.text-purple-500'));
   assert.equal(container.querySelectorAll('time').length, 1, 'the other row shows its age');
 });

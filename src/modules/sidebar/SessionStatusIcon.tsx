@@ -1,4 +1,4 @@
-import { CircleCheck, Loader2, MessageCircleQuestion } from 'lucide-react';
+import { Activity, CircleCheck, Loader2, MessageCircleQuestion } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Tooltip } from '@/shared/ui';
@@ -26,6 +26,12 @@ export default function SessionStatusIcon({ status, t }: SessionStatusIconProps)
     working: {
       label: t('tooltips.processingSessionIndicator', { defaultValue: 'Processing session' }),
       icon: <Loader2 className="h-3 w-3 animate-spin text-emerald-500 dark:text-emerald-400" />,
+    },
+    // No spinner: nothing is responding. The purple of the workflow and agent
+    // cards says what is still running.
+    background: {
+      label: t('tooltips.backgroundWorkIndicator', { defaultValue: 'Background work running' }),
+      icon: <Activity className="h-3 w-3 animate-pulse text-purple-500 dark:text-purple-400" />,
     },
     'unread-completed': {
       label: t('tooltips.unreadCompletedIndicator', { defaultValue: 'Finished, not read yet' }),

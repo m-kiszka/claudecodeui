@@ -403,6 +403,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       transcriptAnchorId: msg.transcriptAnchorId,
       compact: msg.compact,
       contextCleared: msg.contextCleared,
+      interrupted: msg.interrupted,
       // Set by the provider only on an assistant reply, and only when it knows
       // which model produced it, so every other row simply carries undefined.
       model: msg.model,

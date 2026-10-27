@@ -402,6 +402,7 @@
     "compacted": "Compacted",
     "compactionSummary": "full summary",
     "contextCleared": "Context cleared",
+    "interrupted": "Interrupted by user",
     "expandImage": "Expand {{name}}",
     "tokensLabel_one": "token",
     "tokensLabel_other": "tokens",

@@ -415,6 +415,8 @@ export type ChatMessage = {
   compactSummary?: string;
   /** Marks where the session's context was cleared and a new part begins. */
   contextCleared?: boolean;
+  /** Marks where the user interrupted a running response. */
+  interrupted?: boolean;
   isSubagentContainer?: boolean;
   /** The agent this row spawned, when it spawned one. Its presence is what makes a row a subagent container. */
   subagent?: SubagentInfo;
@@ -577,6 +579,8 @@ export type NormalizedMessage = {
   compact?: CompactionInfo;
   /** Set by the provider on the marker where a session's context was cleared. */
   contextCleared?: boolean;
+  /** Set by the provider on the marker where the user interrupted a response. */
+  interrupted?: boolean;
   /** Set on a turn refused for a usage limit, and on the live event that reports one. */
   rateLimit?: RateLimitInfo;
   images?: Array<{ path?: string; data?: string; name?: string }>;

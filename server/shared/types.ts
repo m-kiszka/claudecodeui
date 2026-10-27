@@ -376,6 +376,8 @@ export type NormalizedMessage = {
   compact?: CompactionInfo;
   /** Set on the marker where a session's context was cleared and a new part begins. */
   contextCleared?: boolean;
+  /** Set on the marker where the user interrupted a running response. */
+  interrupted?: boolean;
   /** Set on a turn refused for a usage limit, and on the live event that reports one. */
   rateLimit?: RateLimitInfo;
   images?: unknown;

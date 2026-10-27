@@ -1014,6 +1014,9 @@ async function getSessionMessages(
  * run and then vanishes on reload. The skill is already represented by the
  * `Skill` tool call, so it is never user-visible content.
  */
+/** Starts the synthetic user row the CLI writes when a response is stopped. */
+const INTERRUPTED_PREFIX = '[Request interrupted';
+
 const INTERNAL_CONTENT_PREFIXES = [
   '<system-reminder>',
   'Caveat:',
@@ -1480,6 +1483,27 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     }
 
     if (raw.message?.role === 'user' && raw.message?.content && raw.isMeta !== true) {
+      // The CLI records a stopped response as a synthetic user row
+      // ("[Request interrupted by user]", or "... for tool use"). Its text is
+      // internal, but the stop itself is shown, as the Shell tab shows it.
+      const userText = typeof raw.message.content === 'string'
+        ? raw.message.content
+        : Array.isArray(raw.message.content)
+          ? raw.message.content.filter((part: AnyRecord) => part?.type === 'text').map((part: AnyRecord) => part.text).join('\n')
+          : '';
+      if (userText.trimStart().startsWith(INTERRUPTED_PREFIX)) {
+        return [createNormalizedMessage({
+          id: baseId,
+          sessionId,
+          timestamp: ts,
+          provider: PROVIDER,
+          kind: 'text',
+          role: 'assistant',
+          content: 'Interrupted by user',
+          interrupted: true,
+        })];
+      }
+
       if (Array.isArray(raw.message.content)) {
         // Image attachments sent through the SDK are persisted as base64
         // `image` blocks next to the prompt text. Collect them so the UI can

@@ -2389,3 +2389,25 @@ test('extractFirstValidJsonlData closes the file stream on the no-match path', {
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('a stopped response becomes an interrupted marker instead of disappearing', () => {
+  // The CLI records a stop as a synthetic user row. Its text stays hidden, but
+  // the Chat tab shows that the response was interrupted, as the Shell tab does.
+  const provider = new ClaudeSessionsProvider();
+  for (const content of [
+    [{ type: 'text', text: '[Request interrupted by user]' }],
+    [{ type: 'text', text: '[Request interrupted by user for tool use]' }],
+    '[Request interrupted by user]',
+  ]) {
+    const messages = provider.normalizeMessage({
+      type: 'user',
+      session_id: SESSION_ID,
+      uuid: 'interrupted-row',
+      message: { role: 'user', content },
+    }, SESSION_ID);
+
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.interrupted, true);
+    assert.equal(messages[0]?.role, 'assistant');
+  }
+});

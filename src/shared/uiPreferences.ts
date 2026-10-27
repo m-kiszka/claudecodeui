@@ -14,6 +14,7 @@ export type UiPreferences = {
   showThinking: boolean;
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
+  keepProjectsExpanded: boolean;
   voiceEnabled: boolean;
   /** Queueing a message while a turn runs stops that turn, so the message is sent at once. */
   queueInterrupts: boolean;
@@ -32,6 +33,7 @@ const DEFAULTS: UiPreferences = {
   showThinking: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
+  keepProjectsExpanded: false,
   voiceEnabled: false,
   queueInterrupts: false,
   handoffAndClear: false,

@@ -53,6 +53,8 @@ const userService = createUserService({
     getDrafts: (userId) => sessionDraftsDb.getDrafts(userId),
     saveDraft: (userId, scope, draft) => sessionDraftsDb.saveDraft(userId, scope, draft),
     saveDraftText: (userId, scope, text) => sessionDraftsDb.saveDraftText(userId, scope, text),
+    appendQueuedMessage: (userId, scope, message) => sessionDraftsDb.appendQueuedMessage(userId, scope, message),
+    clearQueuedMessage: (userId, scope) => sessionDraftsDb.clearQueuedMessage(userId, scope),
     deleteDraft: (userId, scope) => sessionDraftsDb.deleteDraft(userId, scope),
   },
   readSystemGitConfig,

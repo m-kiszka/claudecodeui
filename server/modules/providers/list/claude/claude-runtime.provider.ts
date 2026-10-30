@@ -955,6 +955,16 @@ async function buildPromptMessages(command: string, images: unknown, files: unkn
  * @param {Array<Object>} messages - SDKUserMessage records to send
  * @returns {{ stream: AsyncIterable, release: () => void }} Stream plus its closer
  */
+/**
+ * True for the `result` of a turn the CLI started itself rather than for a
+ * prompt we sent: those carry an `origin` such as `task-notification`, while a
+ * prompt's turn carries none (or `human`).
+ */
+export function isPushedTurnResult(message: AnyRecord): boolean {
+  const kind = message?.origin?.kind;
+  return typeof kind === 'string' && kind !== 'human';
+}
+
 function createHeldPromptStream(messages: unknown[]) {
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => { release = resolve; });
@@ -1387,7 +1397,13 @@ async function queryClaudeSDK(
         releasePromptStream();
       }
 
-      if (message.type === 'result') {
+      if (message.type === 'result' && !turnCompleteSent && isPushedTurnResult(message)) {
+        // A turn the CLI ran on its own (a background-task notification it had
+        // queued, which a resumed process replays) before reaching our prompt.
+        // Our prompt is still waiting in the CLI's queue: ending the turn here
+        // would close stdin under it, and every question or approval it then
+        // asks fails with "Stream closed".
+      } else if (message.type === 'result') {
         // The turn is done as far as the client is concerned.
         const abortPending = sessionKey() ? abortedSessionIds.has(sessionKey()) : false;
         const stillOutstanding = backgroundWork.hasOutstanding(sessionKey()!);

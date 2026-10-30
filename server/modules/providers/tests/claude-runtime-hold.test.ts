@@ -307,3 +307,25 @@ test('a turn whose tool emits no task events still holds on the static rule', as
     assert.equal(script.released(), false, 'Monitor reports no task, so the launch rule decides');
   });
 });
+
+test('a turn the CLI runs on its own before our prompt does not end our turn', async () => {
+  // A resumed process can replay a background-task notification it had queued
+  // before reaching our prompt. That turn's result is not ours: closing stdin
+  // there left our prompt's questions failing with "Stream closed".
+  await withRun(async ({ script, sent }) => {
+    script.emit(init());
+    script.emit({ ...result(), origin: { kind: 'task-notification' } });
+    // A message after it, so the run has provably handled the result.
+    script.emit({
+      type: 'assistant', session_id: NATIVE_ID, parent_tool_use_id: null,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'answering our prompt' }] },
+    });
+    await waitFor(() => sent.some((message) => message.kind === 'text' && message.content === 'answering our prompt'));
+    assert.equal(script.released(), false, 'our prompt is still queued in the CLI');
+    assert.equal(sent.filter((message) => message.kind === 'complete').length, 0);
+
+    script.emit(result());
+    await waitFor(() => script.released());
+    assert.equal(sent.filter((message) => message.kind === 'complete').length, 1);
+  });
+});

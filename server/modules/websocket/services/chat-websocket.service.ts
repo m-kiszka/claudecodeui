@@ -148,6 +148,25 @@ function readRequiredSessionId(data: AnyRecord): string | null {
  * provider-native id all come from the database — never from the client),
  * registers the run, and dispatches to the provider runtime.
  */
+/**
+ * The session each chat socket last subscribed to, i.e. the one its tab shows.
+ *
+ * A run the server starts by itself (a queued follow-up, a scheduled message)
+ * has no socket of its own, and a tab attaches to a run only when it sends
+ * `chat.subscribe`. Without this, a tab that already had the session open never
+ * saw that run's live events, including the questions and approvals that
+ * exist only in the stream and never reach the transcript.
+ */
+const viewedSessionBySocket = new Map<WebSocket, string>();
+
+function attachSessionViewers(sessionId: string): void {
+  for (const [socket, viewedSessionId] of viewedSessionBySocket) {
+    if (viewedSessionId === sessionId && socket.readyState === WS_OPEN_STATE) {
+      chatRunRegistry.attachConnection(sessionId, socket);
+    }
+  }
+}
+
 async function handleChatSend(
   ws: WebSocket,
   userId: string | number | null,
@@ -522,6 +541,7 @@ function handleChatSubscribe(
       ? Math.max(0, Math.floor(lastSeqRaw))
       : 0;
 
+    viewedSessionBySocket.set(ws, sessionId);
     const run = chatRunRegistry.getRun(sessionId);
     const isProcessing = chatRunRegistry.isProcessing(sessionId);
 
@@ -655,6 +675,9 @@ export async function runDetachedChatTurn(
     session,
     { sessionId: input.sessionId, content: input.content, options: input.options ?? {} },
     dependencies,
+    {},
+    // Before the provider starts, so the tabs showing the session miss no event.
+    () => attachSessionViewers(input.sessionId),
   );
 }
 
@@ -711,5 +734,6 @@ export function handleChatConnection(
   ws.on('close', () => {
     console.log('[INFO] Chat client disconnected');
     connectedClients.delete(ws);
+    viewedSessionBySocket.delete(ws);
   });
 }

@@ -6,7 +6,7 @@ import path from 'node:path';
 import test, { mock } from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
-import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
+import { handleChatConnection, runDetachedChatTurn } from '@/modules/websocket/services/chat-websocket.service.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
 
@@ -164,4 +164,38 @@ test('a retained run\'s eviction timer cannot evict the session\'s next run earl
   } finally {
     mock.timers.reset();
   }
+});
+
+test('a run the server starts itself reaches the tab that already shows the session', async () => {
+  // A queued follow-up or a scheduled message starts a run with no socket. A
+  // tab that had the session open before it started must still get its live
+  // events: a question the model asks exists only in the stream.
+  await withIsolatedDatabase(async () => {
+    const viewingTab = createFakeSocket();
+    const otherTab = createFakeSocket();
+    const runtime = {
+      hasRuntime: () => true,
+      hasBackgroundWork: () => false,
+      getPendingApprovalsForSession: () => [],
+      run: async (_provider: string, _command: string, _options: unknown, writer: { send: (message: unknown) => void }) => {
+        writer.send({ kind: 'permission_request', provider: 'claude', sessionId: 'native-1', requestId: 'r1', toolName: 'AskUserQuestion' });
+        writer.send({ kind: 'complete', provider: 'claude', sessionId: 'native-1', exitCode: 0 });
+      },
+    };
+    for (const tab of [viewingTab, otherTab]) {
+      handleChatConnection(tab as never, { user: { id: 1 } } as never, { runtime } as never);
+    }
+    viewingTab.emit('message', JSON.stringify({ type: 'chat.subscribe', sessions: [{ sessionId: SESSION_ID, lastSeq: 0 }] }));
+    otherTab.emit('message', JSON.stringify({ type: 'chat.subscribe', sessions: [{ sessionId: 'another-session', lastSeq: 0 }] }));
+    await settle();
+
+    const result = await runDetachedChatTurn({ sessionId: SESSION_ID, userId: 1, content: 'queued follow-up' }, { runtime } as never);
+
+    assert.equal(result.started, true);
+    assert.ok(
+      viewingTab.frames.some((frame) => frame.kind === 'permission_request'),
+      'the question must reach the tab showing the session',
+    );
+    assert.ok(!otherTab.frames.some((frame) => frame.kind === 'permission_request'));
+  });
 });

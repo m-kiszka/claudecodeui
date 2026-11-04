@@ -108,6 +108,9 @@ type SubmitOptions = {
   appPrompt?: boolean;
 };
 
+/** How late a claimed queued message may be noticed and still be echoed into the transcript. */
+const QUEUED_ECHO_MAX_DELAY_MS = 10_000;
+
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
 };
@@ -1241,21 +1244,35 @@ export function useChatComposerState({
       return;
     }
     let cancelled = false;
+    // When the server was last seen still holding the message; it was claimed
+    // after that. A hidden tab's timers are throttled, so the claim can be
+    // noticed minutes late.
+    let lastSeenQueuedAt = Date.now();
     const reconcile = async () => {
       await hydrateChatDrafts();
+      if (!cancelled && readQueuedMessage(sessionKey)) {
+        lastSeenQueuedAt = Date.now();
+      }
       if (!cancelled && !readQueuedMessage(sessionKey)) {
         queuedDraftSessionRef.current = sessionKey;
         setQueuedDraft(null);
+        // Noticed late, the run has long written the prompt to the transcript,
+        // and an echo stamped now would outlive it as the newest message.
+        if (Date.now() - lastSeenQueuedAt > QUEUED_ECHO_MAX_DELAY_MS) {
+          return;
+        }
         // The server claimed it and is sending it. Its run streams no echo
         // of the prompt, so show it now, as a send from here would, instead
-        // of leaving it nowhere until the history catches up.
+        // of leaving it nowhere until the history catches up. Stamped with
+        // when it was last seen queued, so the transcript row that follows
+        // within seconds retires it.
         const attachments = (queuedDraft.uploadedAttachments ?? []) as ChatAttachment[];
         addMessage({
           type: 'user',
           content: queuedDraft.content,
           images: attachments.filter(isImageAttachment),
           files: attachments.filter((attachment) => !isImageAttachment(attachment)),
-          timestamp: new Date(),
+          timestamp: new Date(lastSeenQueuedAt),
         });
       }
       // Another tab may have added to the queued message; the card shows what

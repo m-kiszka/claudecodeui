@@ -148,6 +148,7 @@ type Props = {
 
 const render = (initialProps: Partial<Props> = {}) => {
   const errors: ChatMessage[] = [];
+  const userEchoes: ChatMessage[] = [];
   const view = renderHook(
     ({ session, isLoading, model, processingSessions }: Props) => useChatComposerState({
       selectedProject: PROJECT,
@@ -167,13 +168,14 @@ const render = (initialProps: Partial<Props> = {}) => {
       scrollToBottom: () => undefined,
       addMessage: (message) => {
         if (message.type === 'error') errors.push(message);
+        if (message.type === 'user') userEchoes.push(message);
       },
       setIsUserScrolledUp: () => undefined,
       setPendingPermissionRequests: () => undefined,
     }),
     { initialProps: { session: SESSION_1, isLoading: true, model: 'model-1', ...initialProps } },
   );
-  return { view, errors };
+  return { view, errors, userEchoes };
 };
 
 type View = ReturnType<typeof render>['view'];
@@ -698,4 +700,38 @@ test('a session switch during the upload keeps a draft that changed in the sessi
 
   assert.equal(queuedOnServer('session-1')?.content, 'follow-up B');
   assert.equal(readDraftText('session-1'), 'written on the laptop');
+});
+
+test('a queued message the server sends is echoed once, stamped before its transcript row', async () => {
+  const { view, userEchoes } = render();
+  await submit(view, 'follow-up A');
+  const queuedAt = Date.now();
+  dispatcherClaims('session-1');
+
+  await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+
+  await waitFor(() => assert.equal(view.result.current.queuedDraft, null), { timeout: 1_000 });
+  assert.equal(userEchoes.length, 1);
+  assert.equal(userEchoes[0].content, 'follow-up A');
+  // The run writes its transcript row seconds after the claim; an echo stamped
+  // later than that row would never be matched to it and stay as the newest.
+  assert.ok(new Date(userEchoes[0].timestamp).getTime() <= queuedAt + 1_000);
+});
+
+test('a queued message whose sending is noticed late is not echoed again as the newest message', async () => {
+  // A hidden tab's timers are throttled to about once a minute, so the claim
+  // can be noticed long after the transcript already holds the prompt.
+  const { view, userEchoes } = render();
+  await submit(view, 'follow-up A');
+  dispatcherClaims('session-1');
+  const realNow = Date.now.bind(Date);
+  vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 60_000);
+  try {
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+
+    await waitFor(() => assert.equal(view.result.current.queuedDraft, null), { timeout: 1_000 });
+    assert.equal(userEchoes.length, 0);
+  } finally {
+    vi.restoreAllMocks();
+  }
 });

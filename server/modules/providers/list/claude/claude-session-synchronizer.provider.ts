@@ -65,7 +65,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       }
 
       const parsed = await this.processSessionFile(filePath, nameMap);
-      if (!parsed || sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
+      if (!parsed) {
         continue;
       }
 
@@ -98,10 +98,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     const nameMap = await buildLookupMap(path.join(this.claudeHome, 'history.jsonl'), 'sessionId', 'display');
     const parsed = await this.processSessionFile(filePath, nameMap);
-    // A transcript a session has moved on from (an earlier part of a cleared
-    // conversation) belongs to that session; indexing it again would bring it
-    // back as a sidebar entry of its own.
-    if (!parsed || sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
+    if (!parsed) {
       return null;
     }
 
@@ -151,6 +148,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         provider: this.provider,
         sessionId: session.session_id,
         jsonlPath: session.jsonl_path,
+        reason: 'context_cleared',
       });
     }
     sessionsDb.repointSessionToProviderSession(session.session_id, {
@@ -194,6 +192,18 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     });
 
     if (!parsed) {
+      return null;
+    }
+
+    // A transcript a session's context was cleared off stays on disk as an
+    // earlier part of that conversation. Re-indexing it would list it as a
+    // session of its own — and for a session discovered from disk, whose app
+    // id is that transcript's id, it would hand the row back to the context
+    // the user cleared.
+    if (sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
+      // Cleared before this file was ever indexed: its path is not on record
+      // yet, and the history reader needs it to show that part.
+      sessionsDb.recordSupersededTranscriptPath(parsed.sessionId, this.provider, filePath);
       return null;
     }
 

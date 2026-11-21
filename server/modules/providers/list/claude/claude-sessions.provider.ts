@@ -704,74 +704,30 @@ type LiveRunStartTimeProbe = (sessionId: string) => number | null;
 /** The CLI's names for clearing the conversation, as transcripts record them. */
 const CLEAR_COMMAND_NAMES = new Set(['/clear', '/reset', '/new']);
 
-/** Raw-row type of the marker drawn where a session's context was cleared. */
-const CONTEXT_CLEARED_ROW_TYPE = 'cloudcli-context-cleared';
-
-/**
- * The marker row that opens a later part of a cleared session.
- *
- * It sorts just before the part's first row, so the history's timestamp sort
- * keeps it at the seam.
- */
-function createContextClearedRow(partRows: AnyRecord[]): AnyRecord {
-  const firstTimestamp = partRows
-    .map((row) => Date.parse(String(row.timestamp ?? '')))
-    .find((time) => Number.isFinite(time));
-  const timestamp = new Date((firstTimestamp ?? Date.now()) - 1).toISOString();
-  const firstUuid = partRows.find((row) => typeof row.uuid === 'string')?.uuid;
-  return {
-    type: CONTEXT_CLEARED_ROW_TYPE,
-    uuid: firstUuid ? `context-cleared-${firstUuid}` : undefined,
-    timestamp,
-  };
-}
-
 async function getSessionMessages(
   sessionId: string,
   providerSessionId: string,
   limit: number | null,
   offset: number,
   getLiveRunStartTime: LiveRunStartTimeProbe,
+  transcriptPath?: string,
 ): Promise<ClaudeHistoryMessagesResult> {
   try {
     // The DB row is keyed by the app-facing session id, while the JSONL rows
-    // on disk carry the provider-native id — both ids are needed here.
-    const jsonLPath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
+    // on disk carry the provider-native id — both ids are needed here. An
+    // explicit path is an earlier part of the conversation (its context was
+    // cleared since), which the row no longer points at.
+    const jsonLPath = transcriptPath ?? sessionsDb.getSessionById(sessionId)?.jsonl_path;
 
-    // A session whose context was cleared lives in several transcripts. The
-    // earlier ones are drawn above the current one, each later part opened by
-    // a marker row, so the conversation reads as one with a visible cut. Right
-    // after a clear from the chat there is no current transcript yet, only the
-    // earlier parts.
-    const parts = sessionsDb.getSupersededTranscripts(sessionId, PROVIDER);
-    if (jsonLPath) {
-      parts.push({ providerSessionId, jsonlPath: jsonLPath });
-    }
-    const lastPart = parts.at(-1);
-    if (!lastPart) {
+    if (!jsonLPath) {
       return { messages: [], total: 0, hasMore: false };
     }
 
-    const projectDir = path.dirname(lastPart.jsonlPath);
-    const messages: AnyRecord[] = [];
-    // Which part each agent was launched from: its transcript sits in that
-    // part's own folder, not the current one's.
-    const partIdByAgentId = new Map<string, string>();
-    for (const [index, part] of parts.entries()) {
-      const partRows = dropSupersededPromptBranches(
-        await readTranscriptRows(part.jsonlPath, part.providerSessionId).catch(() => []),
-      );
-      for (const row of partRows) {
-        const agentId = row.toolUseResult?.agentId;
-        if (agentId) {
-          partIdByAgentId.set(String(agentId), part.providerSessionId);
-        }
-      }
-      if (index > 0 && partRows.length > 0) {
-        messages.push(createContextClearedRow(partRows));
-      }
-      messages.push(...partRows);
-    }
+    const projectDir = path.dirname(jsonLPath);
+
+    const messages = dropSupersededPromptBranches(
+      await readTranscriptRows(jsonLPath, providerSessionId),
+    );
 
     const agentIds = new Set<string>();
     for (const message of messages) {
@@ -789,11 +745,7 @@ async function getSessionMessages(
       info: Omit<SubagentInfo, 'status'>;
     }>();
     for (const agentId of agentIds) {
-      const located = await findClaudeSubagentTranscript(
-        projectDir,
-        partIdByAgentId.get(agentId) ?? providerSessionId,
-        agentId,
-      );
+      const located = await findClaudeSubagentTranscript(projectDir, providerSessionId, agentId);
       if (!located) {
         continue;
       }
@@ -1390,19 +1342,6 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const messages: NormalizedMessage[] = [];
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('claude');
-
-    if (raw.type === CONTEXT_CLEARED_ROW_TYPE) {
-      return [createNormalizedMessage({
-        id: baseId,
-        sessionId,
-        timestamp: ts,
-        provider: PROVIDER,
-        kind: 'text',
-        role: 'assistant',
-        content: 'Context cleared',
-        contextCleared: true,
-      })];
-    }
 
     // A message steered into a running turn that Claude read at a tool-call
     // boundary is stored as a `queued_command` attachment of that turn rather
@@ -2039,7 +1978,10 @@ export class ClaudeSessionsProvider implements IProviderSessions {
   /** The session's transcript parts in order, earlier (cleared) ones first. */
   private listTranscriptParts(sessionId: string): Array<{ providerSessionId: string; jsonlPath: string }> {
     const session = sessionsDb.getSessionById(sessionId);
-    const parts = sessionsDb.getSupersededTranscripts(sessionId, PROVIDER);
+    const parts = sessionsDb.getClearedContextSegments(sessionId)
+      .flatMap((segment) => (segment.jsonlPath
+        ? [{ providerSessionId: segment.providerSessionId, jsonlPath: segment.jsonlPath }]
+        : []));
     if (session?.jsonl_path && session.provider_session_id) {
       parts.push({ providerSessionId: session.provider_session_id, jsonlPath: session.jsonl_path });
     }
@@ -2061,7 +2003,14 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     try {
       // Load full history first so `total` reflects frontend-normalized messages,
       // not raw JSONL records.
-      result = await getSessionMessages(sessionId, providerSessionId, null, 0, this.getLiveRunStartTime);
+      result = await getSessionMessages(
+        sessionId,
+        providerSessionId,
+        null,
+        0,
+        this.getLiveRunStartTime,
+        options.transcriptPath,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[ClaudeProvider] Failed to load session ${sessionId}:`, message);

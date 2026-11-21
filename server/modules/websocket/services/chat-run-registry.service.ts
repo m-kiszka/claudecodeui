@@ -59,24 +59,6 @@ const MAX_BUFFERED_EVENTS_PER_RUN = 5000;
  */
 const runs = new Map<string, ChatRun>();
 
-/** Called with the app session id after a run ends, whether it finished, failed or was aborted. */
-const runCompletedListeners = new Set<(appSessionId: string) => void>();
-
-function notifyRunCompleted(appSessionId: string): void {
-  // Deferred so the terminal `complete` reaches clients before a listener
-  // starts the session's next turn.
-  setTimeout(() => {
-    for (const listener of runCompletedListeners) {
-      try {
-        listener(appSessionId);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error('[ChatRunRegistry] Run-completed listener failed', { appSessionId, error: message });
-      }
-    }
-  }, 0);
-}
-
 /**
  * Answers whether a completed run must stay registered a while longer. Set by
  * the composition root to the provider runtimes' background-work check: a
@@ -142,7 +124,7 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     run.status = 'completed';
     run.completedAt = Date.now();
     evictRunLater(run);
-    notifyRunCompleted(run.appSessionId);
+    notifyRunSettled(run.appSessionId);
   }
 
   run.events.push(outbound);
@@ -151,6 +133,40 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
   }
 
   return outbound;
+}
+
+/**
+ * Fired when a run reaches its terminal `complete` and the session goes idle.
+ *
+ * The queued-message dispatcher subscribes so a message the user queued during
+ * a turn is sent as soon as that turn ends, instead of waiting for the next
+ * poll. Listeners run on a microtask so a throwing subscriber cannot break the
+ * event that settled the run.
+ */
+const settledListeners = new Set<(appSessionId: string) => void>();
+
+export function onRunSettled(listener: (appSessionId: string) => void): () => void {
+  settledListeners.add(listener);
+  return () => {
+    settledListeners.delete(listener);
+  };
+}
+
+function notifyRunSettled(appSessionId: string): void {
+  for (const listener of settledListeners) {
+    queueMicrotask(() => {
+      // Unsubscribed between the settle and this microtask: stay quiet.
+      if (!settledListeners.has(listener)) {
+        return;
+      }
+      try {
+        listener(appSessionId);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[ChatRunRegistry] run-settled listener failed', { error: message });
+      }
+    });
+  }
 }
 
 /**
@@ -342,18 +358,6 @@ export const chatRunRegistry = {
     }
 
     run.writer.sendComplete(opts);
-  },
-
-  /**
-   * Subscribes to the end of every run. Used by the scheduled-messages
-   * dispatcher to send a queued turn the moment its session goes idle instead
-   * of on its next poll. Returns the unsubscribe function.
-   */
-  onRunCompleted(listener: (appSessionId: string) => void): () => void {
-    runCompletedListeners.add(listener);
-    return () => {
-      runCompletedListeners.delete(listener);
-    };
   },
 
   /**

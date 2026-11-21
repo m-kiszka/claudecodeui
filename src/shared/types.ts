@@ -96,6 +96,10 @@ export type ProjectSession = {
   updated_at?: string;
   lastActivity?: string;
   messageCount?: number;
+  /** Canonical app id of the fork source; absent/null for unrelated sessions. */
+  forkedFromSessionId?: string | null;
+  /** Ancestor context for Projects only; excluded from pagination and the Conversations feed. */
+  forkAncestors?: ProjectSession[];
   provider?: LLMProvider;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
@@ -413,7 +417,7 @@ export type ChatMessage = {
   compact?: CompactionInfo;
   /** The summary that compaction produced, folded into the row above rather than left loose. */
   compactSummary?: string;
-  /** Marks where the session's context was cleared and a new part begins. */
+  /** Set on the row marking where the session's context was cleared, so it is drawn as a divider. */
   contextCleared?: boolean;
   /** Marks where the user interrupted a running response. */
   interrupted?: boolean;
@@ -620,7 +624,7 @@ export type NormalizedMessage = {
   isCompactSummary?: boolean;
   /** Set by the provider on the row that stands in for a compaction. */
   compact?: CompactionInfo;
-  /** Set by the provider on the marker where a session's context was cleared. */
+  /** Set by the server on the row marking where the session's context was cleared. */
   contextCleared?: boolean;
   /** Set by the provider on the marker where the user interrupted a response. */
   interrupted?: boolean;
@@ -770,6 +774,16 @@ type MessageKind =
 // ---------------------------
 
 //----------------- CHAT COMPOSER ------------
+
+/**
+ * A file the chat composer refused to attach, with why: `too-large` is over the size limit,
+ * `too-many` arrived after the composer was full. The composer hook produces these and the
+ * composer lists them in a dismissible notice, since a refused file never becomes an attachment chip.
+ */
+export type AttachmentRejection = {
+  fileName: string;
+  reason: 'too-large' | 'too-many';
+};
 
 /** Result payload of the chat `/model` slash command, describing the session's current provider and model plus the model catalog it may switch to, used to populate the command modal's model picker. */
 export type ModelCommandData = {

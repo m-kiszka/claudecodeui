@@ -244,13 +244,13 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
           )}
         </div>
       ) : message.contextCleared ? (
-        /* Where the context was cleared: everything above is no longer in it */
-        <div className="flex w-full items-center gap-3 py-2" role="separator">
-          <div className="h-px flex-1 bg-border" />
+        /* Where the context was cleared: the model remembers nothing above this line */
+        <div className="flex w-full items-center gap-3 py-1" role="separator">
+          <span className="h-px flex-1 bg-border" />
           <span className="text-xs text-muted-foreground">
             {t('chat:misc.contextCleared', 'Context cleared')}
           </span>
-          <div className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-border" />
         </div>
       ) : message.interrupted ? (
         /* Where the user stopped a response, as the CLI shows it */

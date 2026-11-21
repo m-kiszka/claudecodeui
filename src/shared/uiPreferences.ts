@@ -20,6 +20,8 @@ export type UiPreferences = {
   queueInterrupts: boolean;
   /** Shows the composer button that hands the session off and clears its context. */
   handoffAndClear: boolean;
+  /** Keeps the transcript scrolled to the newest content while the user is at the bottom. */
+  autoScroll: boolean;
 };
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -37,6 +39,7 @@ const DEFAULTS: UiPreferences = {
   voiceEnabled: false,
   queueInterrupts: false,
   handoffAndClear: false,
+  autoScroll: true,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];

@@ -39,6 +39,7 @@ test('a fresh install gets the documented defaults', () => {
     keepProjectsExpanded: false,
     voiceEnabled: false,
     handoffAndClear: false,
+    autoScroll: true,
     queueInterrupts: false,
   });
 });

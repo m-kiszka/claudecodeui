@@ -16,7 +16,7 @@ import { Input } from '@/shared/ui';
 /** Rendered by Settings for the "chat" tab, covering how the composer sends messages. */
 export default function ChatSettingsTab() {
   const { t } = useTranslation('settings');
-  const { queueInterrupts, handoffAndClear } = useUiPreferences();
+  const { queueInterrupts, handoffAndClear, autoScroll } = useUiPreferences();
   const setUiPreference = useSetUiPreference();
   const continuePrompt = useRateLimitContinuePrompt();
   // Held only while the field is being edited, and saved on blur or Enter
@@ -43,6 +43,23 @@ export default function ChatSettingsTab() {
               checked={queueInterrupts}
               onChange={(value) => setUiPreference('queueInterrupts', value)}
               ariaLabel={t('chatSettings.queue.interrupts', { defaultValue: 'Queued messages interrupt' })}
+            />
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsSection title={t('chatSettings.transcript.title', { defaultValue: 'Transcript' })}>
+        <SettingsCard>
+          <SettingsRow
+            label={t('chatSettings.transcript.autoScroll', { defaultValue: 'Follow new messages' })}
+            description={t('chatSettings.transcript.autoScrollDescription', {
+              defaultValue: 'While you are at the bottom of the chat, it keeps scrolling as replies stream in. Off, the view stays put and a button takes you to the newest message.',
+            })}
+          >
+            <SettingsToggle
+              checked={autoScroll}
+              onChange={(value) => setUiPreference('autoScroll', value)}
+              ariaLabel={t('chatSettings.transcript.autoScroll', { defaultValue: 'Follow new messages' })}
             />
           </SettingsRow>
         </SettingsCard>

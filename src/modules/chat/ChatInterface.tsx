@@ -51,6 +51,8 @@ type ChatInterfaceProps = {
   sendByCtrlEnter?: boolean;
   queueInterrupts?: boolean;
   handoffAndClear?: boolean;
+  /** Follow new content at the bottom of the transcript (Settings → Chat). */
+  autoScroll?: boolean;
   externalMessageUpdate?: number;
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
@@ -79,6 +81,7 @@ function ChatInterface({
   sendByCtrlEnter,
   queueInterrupts,
   handoffAndClear = false,
+  autoScroll = true,
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
@@ -182,6 +185,7 @@ function ChatInterface({
     refusingRateLimit,
   } = useChatSessionState({
     isActive,
+    autoScroll,
     selectedProject,
     selectedSession,
     ws,

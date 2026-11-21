@@ -97,6 +97,8 @@ export function visibleCountToReveal(total: number, index: number, current: numb
 
 type UseChatSessionStateArgs = {
   isActive: boolean;
+  /** Follow content that arrives at the bottom while the user is there (Settings → Chat). */
+  autoScroll?: boolean;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   ws: WebSocket | null;
@@ -197,6 +199,7 @@ function chatMessageToNormalized(
 
 export function useChatSessionState({
   isActive,
+  autoScroll = true,
   selectedProject,
   selectedSession,
   ws,
@@ -464,6 +467,11 @@ export function useChatSessionState({
   useEffect(() => {
     isUserScrolledUpRef.current = isUserScrolledUp;
   }, [isUserScrolledUp]);
+  // Read by the content observer and the deferred scrolls, which outlive a render.
+  const autoScrollRef = useRef(autoScroll);
+  useEffect(() => {
+    autoScrollRef.current = autoScroll;
+  }, [autoScroll]);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -624,6 +632,60 @@ export function useChatSessionState({
     }
     void handleScroll();
   }, [handleScroll, isActive]);
+
+  /**
+   * Follows content that grows without a new message being added: a reply
+   * streaming into its row, a tool result expanding, markdown or images that
+   * finish rendering late. The effects keyed on `chatMessages.length` never
+   * see these, so the newest text slid below the fold while the user was at
+   * the bottom.
+   *
+   * With following turned off, growth that pushes the newest content out of
+   * view counts as scrolled up, so the "scroll to bottom" button appears.
+   */
+  useEffect(() => {
+    if (!isActive) return undefined;
+    const container = scrollContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return undefined;
+
+    let lastHeight = container.scrollHeight;
+    const handleContentResize = () => {
+      const height = container.scrollHeight;
+      const grew = height > lastHeight;
+      lastHeight = height;
+      if (!grew || isUserScrolledUpRef.current) return;
+      // Older pages and search jumps place the view themselves.
+      if (isLoadingMoreRef.current || pendingScrollRestoreRef.current || searchScrollActiveRef.current) return;
+
+      if (autoScrollRef.current) {
+        container.scrollTop = container.scrollHeight;
+      } else if (!isNearBottom()) {
+        isUserScrolledUpRef.current = true;
+        setIsUserScrolledUp(true);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(handleContentResize);
+    // The pane's children change (the background-task strip comes and goes),
+    // so the observed set is rebuilt whenever they do.
+    const observeChildren = () => {
+      resizeObserver.disconnect();
+      for (const child of Array.from(container.children)) {
+        resizeObserver.observe(child);
+      }
+    };
+    observeChildren();
+    const mutationObserver = new MutationObserver(observeChildren);
+    mutationObserver.observe(container, { childList: true });
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+    // The project and session are here for the container, not the callback:
+    // the chat renders no transcript until a project is picked, so the pane
+    // can mount after this effect first ran.
+  }, [isActive, isNearBottom, selectedProject?.projectId, selectedSession?.id]);
 
   const wasChatActiveRef = useRef(isActive);
   useLayoutEffect(() => {
@@ -886,7 +948,7 @@ export function useChatSessionState({
         // Skip the refresh only while this client streams the turn itself; a
         // turn run in the Claude CLI has no stream, only the transcript on disk.
         if (!canAbortSession) {
-          const shouldStickToBottom = isActiveRef.current && isNearBottom();
+          const shouldStickToBottom = autoScrollRef.current && isActiveRef.current && isNearBottom();
           await requestLatestMessages(selectedSession.id);
 
           if (shouldStickToBottom) {
@@ -1072,9 +1134,9 @@ export function useChatSessionState({
     if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
     if (searchScrollActiveRef.current) return;
 
-    if (!isUserScrolledUp) {
+    if (!isUserScrolledUp && autoScrollRef.current) {
       setTimeout(() => {
-        if (!isUserScrolledUpRef.current) {
+        if (!isUserScrolledUpRef.current && autoScrollRef.current) {
           scrollToBottom();
         }
       }, 50);

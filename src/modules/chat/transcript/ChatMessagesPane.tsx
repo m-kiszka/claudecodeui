@@ -33,6 +33,7 @@ type ChatMessagesPaneProps = {
   scrollContainerRef: RefObject<HTMLDivElement>;
   onWheel: (event: WheelEvent<HTMLElement>) => void;
   onTouchMove: (event: TouchEvent<HTMLElement>) => void;
+  onTouchStart: (event: TouchEvent<HTMLElement>) => void;
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
@@ -108,6 +109,7 @@ function ChatMessagesPane({
   scrollContainerRef,
   onWheel,
   onTouchMove,
+  onTouchStart,
   isLoadingSessionMessages,
   isProcessing = false,
   hasActivityIndicator = false,
@@ -198,6 +200,7 @@ function ChatMessagesPane({
       ref={scrollContainerRef}
       onWheel={onWheel}
       onTouchMove={onTouchMove}
+      onTouchStart={onTouchStart}
       className={`chat-messages-pane relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-3 sm:pt-4 ${
         hasActivityIndicator ? 'pb-12 sm:pb-14' : 'pb-3 sm:pb-4'
       }`}

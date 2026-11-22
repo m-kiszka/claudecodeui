@@ -44,6 +44,10 @@ function createContainer(clientHeight: number) {
 
   Object.defineProperty(element, 'scrollHeight', { get: () => scrollHeight });
   Object.defineProperty(element, 'clientHeight', { get: () => clientHeight });
+  // A taller composer or the soft keyboard shrinks the pane, not its content.
+  const shrink = (by: number) => {
+    clientHeight -= by;
+  };
   Object.defineProperty(element, 'scrollTop', {
     get: () => scrollTop,
     set: (next: number) => {
@@ -58,6 +62,7 @@ function createContainer(clientHeight: number) {
     grow: (by: number) => {
       scrollHeight += by;
     },
+    shrink,
   };
 }
 
@@ -157,4 +162,42 @@ test('with following off, growth stays put and brings up the scroll-to-bottom bu
 
   assert.deepEqual(container.writes, [], 'the view does not move');
   assert.equal(rendered.result.current.isUserScrolledUp, true, 'the button shows');
+});
+
+type TouchHandlers = {
+  handleScrollGesture: (event: never) => void;
+  handleTouchStart?: (event: never) => void;
+};
+const touch = (clientY: number) => ({ touches: [{ clientY }] }) as never;
+
+test('a new swipe that starts lower than the last one ended is not taken for scrolling up', async () => {
+  const { rendered, container } = await renderWithContainer(true);
+  const handlers = rendered.result.current as unknown as TouchHandlers;
+
+  // First swipe: the finger moves up the screen, towards the newest message.
+  act(() => {
+    handlers.handleTouchStart?.(touch(600));
+    handlers.handleScrollGesture(touch(600));
+    handlers.handleScrollGesture(touch(200));
+  });
+  // Second swipe starts near the bottom of the screen, again moving up.
+  act(() => {
+    handlers.handleTouchStart?.(touch(650));
+    handlers.handleScrollGesture(touch(650));
+    handlers.handleScrollGesture(touch(600));
+  });
+
+  assert.equal(rendered.result.current.isUserScrolledUp, false, 'still following the bottom');
+  container.grow(300);
+  await reportResize();
+  assert.deepEqual(container.writes, [1300], 'the next reply is followed');
+});
+
+test('the pane shrinking under a taller composer keeps the newest message in view', async () => {
+  const { container } = await renderWithContainer(true);
+
+  container.shrink(150);
+  await reportResize();
+
+  assert.deepEqual(container.writes, [1000], 'pinned back to the bottom');
 });

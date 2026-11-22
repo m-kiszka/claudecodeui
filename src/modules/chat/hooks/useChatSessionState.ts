@@ -607,6 +607,17 @@ export function useChatSessionState({
   const lastTouchYRef = useRef<number | null>(null);
 
   /**
+   * Starts each swipe from where the finger lands. Without it the first move
+   * of a swipe was compared with where the previous one ended, so a swipe
+   * towards the newest message that began lower on the screen read as
+   * scrolling up and stopped the transcript following the bottom. At the
+   * bottom no scroll event follows to undo that.
+   */
+  const handleTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
+    lastTouchYRef.current = event.touches[0]?.clientY ?? null;
+  }, []);
+
+  /**
    * Wheel and touch handler for the transcript. These events fire before the
    * browser moves the view, so `handleScroll` alone still reads the old
    * position and, within 50px of the bottom, keeps "stick to bottom" on: the
@@ -649,11 +660,18 @@ export function useChatSessionState({
     if (!container || typeof ResizeObserver === 'undefined') return undefined;
 
     let lastHeight = container.scrollHeight;
+    let lastClientHeight = container.clientHeight;
     const handleContentResize = () => {
       const height = container.scrollHeight;
+      const clientHeight = container.clientHeight;
       const grew = height > lastHeight;
+      // The pane itself gets shorter when the composer grows (wrapped text,
+      // a queued card, a banner) or the soft keyboard opens; on a narrow
+      // screen that alone hides the newest message.
+      const shrank = clientHeight < lastClientHeight;
       lastHeight = height;
-      if (!grew || isUserScrolledUpRef.current) return;
+      lastClientHeight = clientHeight;
+      if ((!grew && !shrank) || isUserScrolledUpRef.current) return;
       // Older pages and search jumps place the view themselves.
       if (isLoadingMoreRef.current || pendingScrollRestoreRef.current || searchScrollActiveRef.current) return;
 
@@ -670,6 +688,7 @@ export function useChatSessionState({
     // so the observed set is rebuilt whenever they do.
     const observeChildren = () => {
       resizeObserver.disconnect();
+      resizeObserver.observe(container);
       for (const child of Array.from(container.children)) {
         resizeObserver.observe(child);
       }
@@ -1341,6 +1360,7 @@ export function useChatSessionState({
     scrollToBottomAndReset,
     handleScroll,
     handleScrollGesture,
+    handleTouchStart,
     requestLatestMessages,
   };
 }

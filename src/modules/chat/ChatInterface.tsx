@@ -181,6 +181,7 @@ function ChatInterface({
     scrollToBottom,
     scrollToBottomAndReset,
     handleScrollGesture,
+    handleTouchStart,
     requestLatestMessages,
     refusingRateLimit,
   } = useChatSessionState({
@@ -595,6 +596,7 @@ function ChatInterface({
               // then the only way to reach the top pager or the "load all" overlay.
               onWheel={handleScrollGesture}
               onTouchMove={handleScrollGesture}
+              onTouchStart={handleTouchStart}
               isLoadingSessionMessages={isLoadingSessionMessages}
               isProcessing={isProcessing}
               hasActivityIndicator={hasActivityIndicator}

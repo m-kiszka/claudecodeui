@@ -472,6 +472,17 @@ export function useChatSessionState({
   useEffect(() => {
     autoScrollRef.current = autoScroll;
   }, [autoScroll]);
+  /**
+   * Set by the scroll-to-bottom button: the transcript follows the bottom even
+   * with "Follow new messages" off, until the user scrolls away again.
+   */
+  const followPinnedRef = useRef(false);
+  const shouldFollowBottom = useCallback(
+    () => autoScrollRef.current || followPinnedRef.current,
+    [],
+  );
+
+  const lastUpwardGestureAtRef = useRef(0);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -479,13 +490,29 @@ export function useChatSessionState({
     container.scrollTop = container.scrollHeight;
   }, []);
 
+  /**
+   * The scroll-to-bottom button: jumps to the newest message and keeps
+   * following it. The scrolled-up flag is cleared here rather than left to the
+   * next scroll event, which a recent upward gesture would ignore and which
+   * never comes when the jump lands exactly where the view already is.
+   */
   const scrollToBottomAndReset = useCallback(() => {
+    followPinnedRef.current = true;
+    pendingInitialScrollRef.current = false;
+    isUserScrolledUpRef.current = false;
+    lastUpwardGestureAtRef.current = 0;
+    setIsUserScrolledUp(false);
     scrollToBottom();
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
       setAllMessagesLoaded(false);
       allMessagesLoadedRef.current = false;
     }
+    // Trimming the window and late-rendering rows change the height after
+    // this frame; the content observer follows growth, this covers a shrink.
+    requestAnimationFrame(() => {
+      if (!isUserScrolledUpRef.current) scrollToBottom();
+    });
   }, [allMessagesLoaded, scrollToBottom]);
 
   const isNearBottom = useCallback(() => {
@@ -555,8 +582,6 @@ export function useChatSessionState({
     [hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
   );
 
-  const lastUpwardGestureAtRef = useRef(0);
-
   const handleScroll = useCallback(async () => {
     if (!isActive) return;
     const container = scrollContainerRef.current;
@@ -569,6 +594,7 @@ export function useChatSessionState({
     // Synced here too, not only by the mirroring effect: a deferred
     // scroll-to-bottom firing before that effect runs would pull the view back.
     isUserScrolledUpRef.current = !nearBottom;
+    if (!nearBottom) followPinnedRef.current = false;
     setIsUserScrolledUp(!nearBottom);
     scrollPositionRef.current = {
       height: container.scrollHeight,
@@ -639,6 +665,7 @@ export function useChatSessionState({
       lastUpwardGestureAtRef.current = Date.now();
       pendingInitialScrollRef.current = false;
       isUserScrolledUpRef.current = true;
+      followPinnedRef.current = false;
       setIsUserScrolledUp(true);
     }
     void handleScroll();
@@ -675,7 +702,7 @@ export function useChatSessionState({
       // Older pages and search jumps place the view themselves.
       if (isLoadingMoreRef.current || pendingScrollRestoreRef.current || searchScrollActiveRef.current) return;
 
-      if (autoScrollRef.current) {
+      if (shouldFollowBottom()) {
         container.scrollTop = container.scrollHeight;
       } else if (!isNearBottom()) {
         isUserScrolledUpRef.current = true;
@@ -704,7 +731,7 @@ export function useChatSessionState({
     // The project and session are here for the container, not the callback:
     // the chat renders no transcript until a project is picked, so the pane
     // can mount after this effect first ran.
-  }, [isActive, isNearBottom, selectedProject?.projectId, selectedSession?.id]);
+  }, [isActive, isNearBottom, shouldFollowBottom, selectedProject?.projectId, selectedSession?.id]);
 
   const wasChatActiveRef = useRef(isActive);
   useLayoutEffect(() => {
@@ -759,6 +786,7 @@ export function useChatSessionState({
     topLoadLockRef.current = false;
     pendingScrollRestoreRef.current = null;
     wasNearTopRef.current = false;
+    followPinnedRef.current = false;
     setIsUserScrolledUp(false);
   }, [selectedProject?.projectId, selectedSession?.id]);
 
@@ -967,7 +995,7 @@ export function useChatSessionState({
         // Skip the refresh only while this client streams the turn itself; a
         // turn run in the Claude CLI has no stream, only the transcript on disk.
         if (!canAbortSession) {
-          const shouldStickToBottom = autoScrollRef.current && isActiveRef.current && isNearBottom();
+          const shouldStickToBottom = shouldFollowBottom() && isActiveRef.current && isNearBottom();
           await requestLatestMessages(selectedSession.id);
 
           if (shouldStickToBottom) {
@@ -991,6 +1019,8 @@ export function useChatSessionState({
     selectedProject,
     selectedSession,
     canAbortSession,
+    shouldFollowBottom,
+    isNearBottom,
   ]);
 
   // Search navigation target
@@ -1153,14 +1183,14 @@ export function useChatSessionState({
     if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
     if (searchScrollActiveRef.current) return;
 
-    if (!isUserScrolledUp && autoScrollRef.current) {
+    if (!isUserScrolledUp && shouldFollowBottom()) {
       setTimeout(() => {
-        if (!isUserScrolledUpRef.current && autoScrollRef.current) {
+        if (!isUserScrolledUpRef.current && shouldFollowBottom()) {
           scrollToBottom();
         }
       }, 50);
     }
-  }, [chatMessages.length, isActive, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
+  }, [chatMessages.length, isActive, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom, shouldFollowBottom]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;

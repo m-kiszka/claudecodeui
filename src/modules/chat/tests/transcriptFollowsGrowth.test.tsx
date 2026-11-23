@@ -201,3 +201,45 @@ test('the pane shrinking under a taller composer keeps the newest message in vie
 
   assert.deepEqual(container.writes, [1000], 'pinned back to the bottom');
 });
+
+const wheelUp = { deltaY: -120 } as never;
+
+test('the scroll-to-bottom button keeps following even with following off', async () => {
+  const { rendered, container } = await renderWithContainer(false);
+  container.grow(300);
+  await reportResize();
+  assert.equal(rendered.result.current.isUserScrolledUp, true, 'the button shows');
+
+  act(() => rendered.result.current.scrollToBottomAndReset());
+  assert.equal(rendered.result.current.isUserScrolledUp, false, 'the button goes away at once');
+  container.writes.length = 0;
+
+  container.grow(200);
+  await reportResize();
+  assert.deepEqual(container.writes, [1500], 'the next reply is followed');
+});
+
+test('scrolling up after the button stops following again', async () => {
+  const { rendered, container } = await renderWithContainer(false);
+  act(() => rendered.result.current.scrollToBottomAndReset());
+  act(() => (rendered.result.current as unknown as TouchHandlers).handleScrollGesture(wheelUp));
+  container.writes.length = 0;
+
+  container.grow(300);
+  await reportResize();
+  assert.deepEqual(container.writes, [], 'the reading position is kept');
+});
+
+test('the button works right after a wheel up, without waiting for a scroll event', async () => {
+  const { rendered, container } = await renderWithContainer(true);
+  act(() => (rendered.result.current as unknown as TouchHandlers).handleScrollGesture(wheelUp));
+  assert.equal(rendered.result.current.isUserScrolledUp, true);
+
+  act(() => rendered.result.current.scrollToBottomAndReset());
+  container.writes.length = 0;
+  container.grow(300);
+  await reportResize();
+
+  assert.equal(rendered.result.current.isUserScrolledUp, false);
+  assert.deepEqual(container.writes, [1300], 'followed');
+});

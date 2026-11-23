@@ -190,6 +190,7 @@
     "showAllCommands": "Show all commands",
     "clearInput": "Clear input",
     "scrollToBottom": "Scroll to bottom",
+    "scrollToBottomAndFollow": "Scroll to bottom and follow",
     "queue": {
       "sendNow": "Stop the current response and send now",
       "sendNext": "Queue next message",

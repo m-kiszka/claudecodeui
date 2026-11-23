@@ -483,6 +483,8 @@ export function useChatSessionState({
   );
 
   const lastUpwardGestureAtRef = useRef(0);
+  /** Where the last scroll event left the view; null until one arrives. */
+  const lastScrollTopRef = useRef<number | null>(null);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -591,11 +593,23 @@ export function useChatSessionState({
     // view yet, so "near bottom" would wrongly re-enable sticking to it.
     const nearBottom = isNearBottom()
       && Date.now() - lastUpwardGestureAtRef.current > UPWARD_GESTURE_GRACE_MS;
-    // Synced here too, not only by the mirroring effect: a deferred
-    // scroll-to-bottom firing before that effect runs would pull the view back.
-    isUserScrolledUpRef.current = !nearBottom;
-    if (!nearBottom) followPinnedRef.current = false;
-    setIsUserScrolledUp(!nearBottom);
+    // Away from the bottom counts as the user scrolling up only when the view
+    // actually moved up. Our own jumps only ever move it down, and growing
+    // content leaves scrollTop alone, but a scroll event can arrive late: a
+    // background window holds them until it renders again, while the reply
+    // keeps growing. Read then, our jump looked like the user leaving the
+    // bottom, and following stopped for good.
+    // Before the first event, the position the last render recorded.
+    const previousTop = lastScrollTopRef.current ?? scrollPositionRef.current.top;
+    lastScrollTopRef.current = container.scrollTop;
+    const movedUp = container.scrollTop < previousTop - 1;
+    if (nearBottom || movedUp) {
+      // Synced here too, not only by the mirroring effect: a deferred
+      // scroll-to-bottom firing before that effect runs would pull the view back.
+      isUserScrolledUpRef.current = !nearBottom;
+      if (!nearBottom) followPinnedRef.current = false;
+      setIsUserScrolledUp(!nearBottom);
+    }
     scrollPositionRef.current = {
       height: container.scrollHeight,
       top: container.scrollTop,
@@ -724,9 +738,20 @@ export function useChatSessionState({
     const mutationObserver = new MutationObserver(observeChildren);
     mutationObserver.observe(container, { childList: true });
 
+    // A hidden window renders nothing, so neither the observer nor the
+    // deferred scrolls kept up with a reply that grew meanwhile; catch up the
+    // moment the window shows again rather than on its next growth.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (isUserScrolledUpRef.current || !shouldFollowBottom()) return;
+      container.scrollTop = container.scrollHeight;
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // The project and session are here for the container, not the callback:
     // the chat renders no transcript until a project is picked, so the pane
@@ -787,6 +812,7 @@ export function useChatSessionState({
     pendingScrollRestoreRef.current = null;
     wasNearTopRef.current = false;
     followPinnedRef.current = false;
+    lastScrollTopRef.current = null;
     setIsUserScrolledUp(false);
   }, [selectedProject?.projectId, selectedSession?.id]);
 

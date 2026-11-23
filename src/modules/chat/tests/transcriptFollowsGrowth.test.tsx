@@ -243,3 +243,35 @@ test('the button works right after a wheel up, without waiting for a scroll even
   assert.equal(rendered.result.current.isUserScrolledUp, false);
   assert.deepEqual(container.writes, [1300], 'followed');
 });
+
+test('a late scroll event from our own jump does not count as the user scrolling up', async () => {
+  // In a background window the browser holds scroll events and resize
+  // observations until it renders again, while the reply keeps growing.
+  const { rendered, container } = await renderWithContainer(true);
+  container.grow(300);
+  await reportResize();
+  container.grow(500);
+  await act(async () => {
+    await (rendered.result.current as unknown as { handleScroll: () => Promise<void> }).handleScroll();
+  });
+
+  assert.equal(rendered.result.current.isUserScrolledUp, false, 'still following');
+  container.writes.length = 0;
+  await reportResize();
+  assert.deepEqual(container.writes, [1800], 'caught up with the reply');
+});
+
+test('scrolling up without a gesture, by the scrollbar or Page Up, still stops following', async () => {
+  const { rendered, container } = await renderWithContainer(true);
+
+  container.element.scrollTop = 100;
+  await act(async () => {
+    await (rendered.result.current as unknown as { handleScroll: () => Promise<void> }).handleScroll();
+  });
+
+  assert.equal(rendered.result.current.isUserScrolledUp, true, 'the reading position is the user\'s');
+  container.writes.length = 0;
+  container.grow(300);
+  await reportResize();
+  assert.deepEqual(container.writes, [], 'not pulled back down');
+});

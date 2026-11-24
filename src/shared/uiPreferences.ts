@@ -18,6 +18,8 @@ export type UiPreferences = {
   voiceEnabled: boolean;
   /** Queueing a message while a turn runs stops that turn, so the message is sent at once. */
   queueInterrupts: boolean;
+  /** Enter during a running turn steers the message into it instead of queueing it. */
+  enterSteers: boolean;
   /** Shows the composer button that hands the session off and clears its context. */
   handoffAndClear: boolean;
   /** Keeps the transcript scrolled to the newest content while the user is at the bottom. */
@@ -38,6 +40,7 @@ const DEFAULTS: UiPreferences = {
   keepProjectsExpanded: false,
   voiceEnabled: false,
   queueInterrupts: false,
+  enterSteers: false,
   handoffAndClear: false,
   autoScroll: true,
 };

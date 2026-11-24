@@ -53,12 +53,12 @@ const fakeServer = async (url: RequestInfo | URL, init?: RequestInit): Promise<R
   return json([]);
 };
 
-type Props = { isLoading: boolean; supportsSteering: boolean };
+type Props = { isLoading: boolean; supportsSteering: boolean; enterSteers?: boolean };
 
 const render = (initialProps: Partial<Props> = {}) => {
   const sent: Array<Record<string, unknown>> = [];
   const view = renderHook(
-    ({ isLoading, supportsSteering }: Props) => useChatComposerState({
+    ({ isLoading, supportsSteering, enterSteers }: Props) => useChatComposerState({
       selectedProject: PROJECT,
       selectedSession: SESSION,
       currentSessionId: SESSION.id ?? null,
@@ -73,6 +73,7 @@ const render = (initialProps: Partial<Props> = {}) => {
       tokenBudget: null,
       sendMessage: (message) => { sent.push(message as Record<string, unknown>); },
       supportsSteering,
+      enterSteers,
       scrollToBottom: () => undefined,
       addMessage: () => undefined,
       setIsUserScrolledUp: () => undefined,
@@ -239,4 +240,42 @@ test('Steer chosen just as the turn ended sends the message as the next turn', a
 
   assert.equal(steerFrames(sent).length, 0);
   assert.equal(sent.filter((frame) => frame.type === 'chat.send').length, 1);
+});
+
+test('with Enter set to steer, Enter during a turn sends the message into it', async () => {
+  const { view, sent } = render({ enterSteers: true });
+  await submit(view, 'also check the tests');
+
+  const [frame] = steerFrames(sent);
+  assert.ok(frame, 'a steer frame went out');
+  assert.equal(frame.content, 'also check the tests');
+  assert.equal(queued.has('session-1'), false, 'nothing was queued');
+});
+
+test('with Enter set to steer, Queue from the send menu still queues', async () => {
+  const { view, sent } = render({ enterSteers: true });
+  await act(async () => {
+    view.result.current.setInput('after this');
+  });
+  await act(async () => {
+    await view.result.current.handleSendMenuChoice('queue');
+  });
+
+  assert.equal(steerFrames(sent).length, 0);
+  assert.equal(queued.get('session-1')?.content, 'after this');
+});
+
+test('with Enter set to steer, a slash command still queues', async () => {
+  const { view, sent } = render({ enterSteers: true });
+  await submit(view, '/compact');
+
+  assert.equal(steerFrames(sent).length, 0);
+});
+
+test('with Enter set to steer, a provider that cannot steer queues', async () => {
+  const { view, sent } = render({ enterSteers: true, supportsSteering: false });
+  await submit(view, 'after this');
+
+  assert.equal(steerFrames(sent).length, 0);
+  assert.equal(queued.get('session-1')?.content, 'after this');
 });

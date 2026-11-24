@@ -56,6 +56,8 @@ type UseChatComposerStateArgs = {
   canAbortSession: boolean;
   /** Stop the running turn right after queueing a message, so it is sent at once. */
   queueInterrupts?: boolean;
+  /** Enter during a running turn steers the message into it instead of queueing it. */
+  enterSteers?: boolean;
   tokenBudget: Record<string, unknown> | null;
   sendMessage: (message: unknown) => void;
   /** Whether the chat socket is currently open; a side-question ask while it is not would send nothing and leave the optimistic entry pending forever. */
@@ -282,6 +284,7 @@ export function useChatComposerState({
   processingSessions,
   canAbortSession,
   queueInterrupts = false,
+  enterSteers = false,
   tokenBudget,
   sendMessage,
   isConnected = true,
@@ -429,6 +432,8 @@ export function useChatComposerState({
   const handleAbortSessionRef = useRef<(() => void) | null>(null);
   const queueInterruptsRef = useRef(queueInterrupts);
   queueInterruptsRef.current = queueInterrupts;
+  const enterSteersRef = useRef(enterSteers);
+  enterSteersRef.current = enterSteers;
   const queuedDraftSessionRef = useRef<string | null>(sessionKey);
 
   // Messages this tab sent into a running turn that the agent has not read
@@ -1231,8 +1236,13 @@ export function useChatComposerState({
 
         // Steering sends the message into the running turn instead of after
         // it, when the send menu asked for that and the provider can take it.
-        // A slash command is a turn of its own, so it always waits in the queue.
-        const steersIntoTurn = submitOptions?.steerIntoTurn === true
+        // A plain send (Enter) steers too when the user made that the default;
+        // the menu's Queue row still queues, and an app-composed prompt (the
+        // handoff steps) always waits for the turn to end. A slash command is
+        // a turn of its own, so it always waits in the queue.
+        const steerRequested = submitOptions?.steerIntoTurn
+          ?? (enterSteersRef.current && !submitOptions?.appPrompt);
+        const steersIntoTurn = steerRequested === true
           && supportsSteering
           && Boolean(sessionKey)
           && !currentInput.trimStart().startsWith('/');
@@ -1572,7 +1582,8 @@ export function useChatComposerState({
         await handleSubmit(createFakeSubmitEvent(), undefined, { steerIntoTurn: true });
         return;
       }
-      await handleSubmit(createFakeSubmitEvent(), undefined, { presetBackgroundChoice: choice });
+      // Queue is chosen explicitly here, so it queues even when Enter steers.
+      await handleSubmit(createFakeSubmitEvent(), undefined, { presetBackgroundChoice: choice, steerIntoTurn: false });
     },
     [askSideQuestionAndClear, handleSubmit, sessionKey],
   );

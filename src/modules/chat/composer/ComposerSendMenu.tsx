@@ -33,6 +33,8 @@ type ComposerSendMenuProps = {
   supportsSideQuestions?: boolean;
   /** Same gate for the Steer row: whether the provider can take a message into the turn being written. Only `responding` has a turn to steer, so the row never shows for background work. */
   supportsSteering?: boolean;
+  /** Enter steers instead of queueing (Settings → Chat), so its hint sits on Steer. */
+  enterSteers?: boolean;
   /** Mirrors the composer's "send with Ctrl+Enter" setting, so Queue's hint names the key that actually sends; defaults to false, Enter-to-send, like the composer's own default. */
   sendByCtrlEnter?: boolean;
   onSelect: (choice: ComposerSendMenuChoice) => void;
@@ -58,7 +60,7 @@ function ShortcutHint({ children }: { children: string }) {
  * background-send dialog, so a tap on the first row can never stop or
  * override anything.
  */
-export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, supportsSideQuestions = false, supportsSteering = false, canAbortSession = true, sendByCtrlEnter = false, onSelect }: ComposerSendMenuProps) {
+export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, supportsSideQuestions = false, supportsSteering = false, enterSteers = false, canAbortSession = true, sendByCtrlEnter = false, onSelect }: ComposerSendMenuProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback(() => setIsOpen(false), []);
@@ -83,9 +85,13 @@ export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, 
   // Enter only queues while a turn is written; during background work it
   // opens the "send anyway?" confirm dialog instead, so Queue gets no hint
   // there, matching that row's own description above.
-  const queueShortcut = state === 'responding'
+  const enterShortcut = state === 'responding'
     ? (sendByCtrlEnter ? (isApplePlatform ? '⌘↵' : 'Ctrl+↵') : '↵')
     : null;
+  // Enter goes to Steer when the user made that the default and Steer is offered.
+  const steerTakesEnter = enterSteers && supportsSteering;
+  const queueShortcut = steerTakesEnter ? null : enterShortcut;
+  const steerShortcut = steerTakesEnter ? enterShortcut : null;
   // Esc stops a running turn; background work has no key for Send anyway,
   // so the last row's hint follows the same gate as Queue's.
   const lastShortcut = state === 'responding' ? 'esc' : null;
@@ -131,6 +137,7 @@ export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, 
               role="menuitem"
               label={t('sendMenu.steer.label', { defaultValue: 'Steer' })}
               description={t('sendMenu.steer.description', { defaultValue: 'Send into this turn; read at the next tool call' })}
+              trailing={steerShortcut ? <ShortcutHint>{steerShortcut}</ShortcutHint> : undefined}
               onSelect={() => select('steer')}
             />
           )}

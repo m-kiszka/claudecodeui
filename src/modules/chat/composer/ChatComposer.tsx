@@ -73,6 +73,8 @@ type ChatComposerProps = {
   rateLimitBanner?: ReactNode;
   /** Queuing a message stops the running turn (Settings → Chat), so the queued card says so. */
   queueInterrupts?: boolean;
+  /** Enter during a running turn steers instead of queueing; moves the send menu's ↵ hint. */
+  enterSteers?: boolean;
   onHandoffAndClear: () => void;
   onContinueFromHandoff: () => void;
   /** Whether the viewed session can currently be interrupted; threaded to the send menu's Stop row, which otherwise looks actionable while `onAbortSession` already no-ops. Defaults to true so existing callers and tests, which never had a non-interruptible turn, keep working. */
@@ -173,6 +175,7 @@ export default function ChatComposer({
   handoffPhase,
   rateLimitBanner,
   queueInterrupts = false,
+  enterSteers = false,
   onHandoffAndClear,
   onContinueFromHandoff,
   canAbortSession = true,
@@ -661,6 +664,7 @@ export default function ChatComposer({
                 canAbortSession={canAbortSession}
                 supportsSideQuestions={supportsSideQuestions}
                 supportsSteering={supportsSteering}
+                enterSteers={enterSteers}
                 sendByCtrlEnter={sendByCtrlEnter}
                 onSelect={(choice) => {
                   if (choice === 'stop') {

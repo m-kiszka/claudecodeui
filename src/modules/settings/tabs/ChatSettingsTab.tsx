@@ -16,7 +16,7 @@ import { Input } from '@/shared/ui';
 /** Rendered by Settings for the "chat" tab, covering how the composer sends messages. */
 export default function ChatSettingsTab() {
   const { t } = useTranslation('settings');
-  const { queueInterrupts, handoffAndClear, autoScroll } = useUiPreferences();
+  const { queueInterrupts, enterSteers, handoffAndClear, autoScroll } = useUiPreferences();
   const setUiPreference = useSetUiPreference();
   const continuePrompt = useRateLimitContinuePrompt();
   // Held only while the field is being edited, and saved on blur or Enter
@@ -43,6 +43,18 @@ export default function ChatSettingsTab() {
               checked={queueInterrupts}
               onChange={(value) => setUiPreference('queueInterrupts', value)}
               ariaLabel={t('chatSettings.queue.interrupts', { defaultValue: 'Queued messages interrupt' })}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label={t('chatSettings.queue.enterSteers', { defaultValue: 'Enter steers into the running response' })}
+            description={t('chatSettings.queue.enterSteersDescription', {
+              defaultValue: 'While Claude is responding, Enter sends the message into the running turn, read at its next tool call, instead of queueing it for after. Queue stays in the send menu. Slash commands and other providers still queue.',
+            })}
+          >
+            <SettingsToggle
+              checked={enterSteers}
+              onChange={(value) => setUiPreference('enterSteers', value)}
+              ariaLabel={t('chatSettings.queue.enterSteers', { defaultValue: 'Enter steers into the running response' })}
             />
           </SettingsRow>
         </SettingsCard>

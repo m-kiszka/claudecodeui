@@ -126,7 +126,9 @@
     "queue": {
       "title": "Queued messages",
       "interrupts": "Queued messages interrupt",
-      "interruptsDescription": "A message sent while a response is running stops it and is sent right away, instead of waiting for it to finish."
+      "interruptsDescription": "A message sent while a response is running stops it and is sent right away, instead of waiting for it to finish.",
+      "enterSteers": "Enter steers into the running response",
+      "enterSteersDescription": "While Claude is responding, Enter sends the message into the running turn, read at its next tool call, instead of queueing it for after. Queue stays in the send menu. Slash commands and other providers still queue."
     },
     "transcript": {
       "title": "Transcript",

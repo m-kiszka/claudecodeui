@@ -41,6 +41,7 @@ test('a fresh install gets the documented defaults', () => {
     handoffAndClear: false,
     autoScroll: true,
     queueInterrupts: false,
+    enterSteers: false,
   });
 });
 

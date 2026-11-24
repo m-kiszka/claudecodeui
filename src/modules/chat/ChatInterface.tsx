@@ -50,6 +50,8 @@ type ChatInterfaceProps = {
   showThinking?: boolean;
   sendByCtrlEnter?: boolean;
   queueInterrupts?: boolean;
+  /** Enter during a running turn steers instead of queueing (Settings → Chat). */
+  enterSteers?: boolean;
   handoffAndClear?: boolean;
   /** Follow new content at the bottom of the transcript (Settings → Chat). */
   autoScroll?: boolean;
@@ -80,6 +82,7 @@ function ChatInterface({
   showThinking,
   sendByCtrlEnter,
   queueInterrupts,
+  enterSteers = false,
   handoffAndClear = false,
   autoScroll = true,
   externalMessageUpdate,
@@ -327,6 +330,7 @@ function ChatInterface({
     isConnected,
     sendByCtrlEnter,
     queueInterrupts,
+    enterSteers,
     supportsSteering,
     onSessionProcessing,
     onSessionEstablished: handleSessionEstablished,
@@ -676,6 +680,7 @@ function ChatInterface({
           handoffPhase={canHandoffAndClear ? handoff.phase : null}
           rateLimitBanner={rateLimitBanner}
           queueInterrupts={queueInterrupts}
+          enterSteers={enterSteers}
           onHandoffAndClear={handoff.start}
           onContinueFromHandoff={handoff.continueFromHandoff}
           canAbortSession={canAbortSession}

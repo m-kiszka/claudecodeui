@@ -72,7 +72,7 @@ export default function RateLimitBanner({ rateLimit, onContinue, onContinueAtRes
   return (
     <div
       role="status"
-      className="mx-auto mb-2 flex max-w-[54.25rem] flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-sm"
+      className="mx-auto mb-2 flex chat-content-width flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-sm"
     >
       <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
       <span className="min-w-0 flex-1">

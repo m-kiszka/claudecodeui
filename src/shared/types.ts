@@ -1694,6 +1694,8 @@ export type SessionRowActions = {
 };
 
 export type SidebarProjectListProps = SessionRowActions & {
+  /** Running supplies its complete eligible slice; only Projects augments it with off-page pins. */
+  includeOffPagePins?: boolean;
   projects: Project[];
   filteredProjects: Project[];
   selectedProject: Project | null;
@@ -1775,6 +1777,9 @@ export type RecentConversationListItem = Pick<
   ArchivedSessionListItem,
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
 >;
+
+/** Pin summaries include canonical ancestry so Projects can attach forks outside the loaded page. */
+export type PinnedConversationListItem = RecentConversationListItem & Pick<ProjectSession, 'forkedFromSessionId' | 'forkAncestors'>;
 
 /**
  * The rename the sidebar currently has open, if any.
